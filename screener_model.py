@@ -542,11 +542,16 @@ for pl in PILLARS:
     pillar_cov[pl] = cov
 
 MODES = {
-    "longterm":   {"label": "Long-term value", "dir": "long", "w": {"quality": 20, "growth": 15, "balance": 10, "cash": 10, "valuation": 15, "ownership": 5, "trend": 10, "momentum": 5, "rs": 5, "structure": 3, "volume": 2},
-                   "gates": {"turnover_min": 2, "pat_positive": True, "min_bars": 200}},
-    "swing_long": {"label": "Swing — long", "dir": "long", "w": {"quality": 8, "growth": 12, "balance": 4, "cash": 4, "valuation": 0, "ownership": 2, "trend": 18, "momentum": 20, "rs": 18, "structure": 9, "volume": 5},
-                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200}},
-    "swing_short": {"label": "Swing — short", "dir": "short", "w": {"quality": 8, "growth": 12, "balance": 6, "cash": 4, "valuation": 6, "ownership": 0, "trend": 18, "momentum": 18, "rs": 16, "structure": 8, "volume": 4},
+    # Weights and gates reflect the Aug-2026 point-in-time backtest: fundamentals help over a year and are noise
+    # over weeks, so the swing modes rank on technicals only and use fundamentals purely as gates.
+    "longterm":   {"label": "Long-term value", "dir": "long", "review": "1 year", "hold_note": "buy in the 50–200 EMA zone, review yearly",
+                   "w": {"quality": 20, "growth": 15, "balance": 10, "cash": 10, "valuation": 15, "ownership": 5, "trend": 10, "momentum": 5, "rs": 5, "structure": 3, "volume": 2},
+                   "gates": {"turnover_min": 2, "pat_positive": True, "min_bars": 200, "pe_min": 3, "other_inc_max": 0.30, "dilution_max": 0.25}},
+    "swing_long": {"label": "Swing — long", "dir": "long", "review": "2 weeks", "hold_note": "ride while it works; re-rank every two weeks, not monthly",
+                   "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
+                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200, "max_ext": 0.30, "pat_positive": True, "dilution_max": 0.10, "cfo_pat_min": 0.5}},
+    "swing_short": {"label": "Swing — short", "dir": "short", "review": "2 weeks", "hold_note": "no standalone edge in the backtest — use only with a bearish market regime",
+                    "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
                     "gates": {"turnover_min": 25, "below_ema200": True, "atr_pct_min": 0.015, "min_bars": 200}},
 }
 INVERT_FOR_SHORT = ["quality", "growth", "balance", "cash", "valuation", "trend", "momentum", "rs", "structure"]  # volume & ownership stay
@@ -566,14 +571,21 @@ def composite(i, mode):
         num += w * s
     return (num / wt) if wt > 0 else None, (measured / wt) if wt > 0 else 0.0
 
-def gate_fails(F, T, mode):
-    g = MODES[mode]["gates"]; out = []
+def gate_fails(F, T, mode, gates=None):
+    g = gates or MODES[mode]["gates"]; out = []
     if g.get("min_bars") and (T.get("bars") or 0) < g["min_bars"]: out.append("history")
     if g.get("turnover_min") and not ((T.get("turnover_20") or 0) >= g["turnover_min"]): out.append("turnover")
     if g.get("pat_positive") and not ((F.get("pat_ttm") or 0) > 0): out.append("loss-making")
     if g.get("above_ema200") and not ((T.get("vs_ema200") or 0) > 0): out.append("below 200 EMA")
     if g.get("below_ema200") and not ((T.get("vs_ema200") or 0) < 0): out.append("above 200 EMA")
     if g.get("atr_pct_min") and not ((T.get("atr_pct") or 0) >= g["atr_pct_min"]): out.append("ATR too low")
+    if g.get("max_ext") is not None and (T.get("vs_ema200") is not None) and T["vs_ema200"] > g["max_ext"]: out.append("over-extended")
+    if g.get("pe_min") and F.get("pe") is not None and F["pe"] < g["pe_min"]: out.append("P/E < %g (one-off gain?)" % g["pe_min"])
+    if g.get("other_inc_max") and F.get("other_inc_pbt") is not None and F["other_inc_pbt"] > g["other_inc_max"]: out.append("other income")
+    if g.get("dilution_max") is not None:
+        dil = F.get("dilution_3y") if F.get("dilution_3y") is not None else F.get("dilution_hist")
+        if dil is not None and dil > g["dilution_max"]: out.append("dilution")
+    if g.get("cfo_pat_min") is not None and not F.get("lender") and F.get("cfo_pat_3y") is not None and F["cfo_pat_3y"] < g["cfo_pat_min"]: out.append("cash conversion")
     return out
 
 # ----------------------------------------------------------------------------- red flags
@@ -665,9 +677,122 @@ for s in stocks:
 sectors = {k: {"n": v["n"], **{m: r(float(np.median(v[m])), 4) if v[m] else None for m in ["ret_3m", "ret_6m", "vs_ema200", "pe", "sales_g3", "roce"]},
                "pct_above_200": r(float(np.mean([x > 0 for x in v["vs_ema200"]])), 2) if v["vs_ema200"] else None} for k, v in sec.items()}
 
+# sector 1-month medians too (rotation strip)
+for s in stocks:
+    sec[s["sector"]].setdefault("ret_1m", [])
+    if s["T"].get("ret_1m") is not None: sec[s["sector"]]["ret_1m"].append(s["T"]["ret_1m"])
+for k, v in sec.items():
+    sectors[k]["ret_1m"] = r(float(np.median(v["ret_1m"])), 4) if v.get("ret_1m") else None
+
+# ----------------------------------------------------------------------------- market regime
+def regime_block():
+    b = groups.get("NIFTY500") if "NIFTY500" in groups else groups.get("NIFTY50")
+    out_ = {"index": "NIFTY500" if "NIFTY500" in groups else "NIFTY50"}
+    if b is None or len(b) < 120: return out_
+    c = b["close"].values.astype(float)
+    er = pd.Series(c).pipe(lambda s: (s - s.shift(60)).abs() / s.diff().abs().rolling(60).sum()).dropna()
+    out_["eff_ratio_60"] = r(float(er.iloc[-1]), 4)
+    out_["eff_ratio_pctl"] = r(float((er < er.iloc[-1]).mean()), 2)   # vs its own history in this file (≈4y); Mihir's long-run cut is the 25th pct
+    out_["regime"] = "TRENDING" if out_["eff_ratio_pctl"] > 0.25 else "CHOPPY"
+    e200 = ema(c, 200); e50 = ema(c, 50)
+    out_["vs_ema200"] = r(c[-1] / e200[-1] - 1, 4); out_["vs_ema50"] = r(c[-1] / e50[-1] - 1, 4)
+    out_["ret_1m"] = r(c[-1] / c[-22] - 1, 4) if len(c) > 22 else None
+    out_["ret_3m"] = r(c[-1] / c[-64] - 1, 4) if len(c) > 64 else None
+    out_["dd_from_high_1y"] = r(float(c[-1] / np.max(c[-252:]) - 1), 4)
+    # breadth from the universe
+    T_ = [s["T"] for s in stocks if s["T"].get("bars", 0) >= 200]
+    n = max(1, len(T_))
+    out_["breadth"] = {"n": len(T_),
+                       "above_200": r(sum(1 for t in T_ if (t.get("vs_ema200") or 0) > 0) / n, 3),
+                       "above_50": r(sum(1 for t in T_ if (t.get("vs_ema50") or 0) > 0) / n, 3),
+                       "above_20": r(sum(1 for t in T_ if (t.get("vs_ema20") or 0) > 0) / n, 3),
+                       "new_52w_high": sum(1 for t in T_ if (t.get("from_52h") or -1) > -0.01),
+                       "new_52w_low": sum(1 for t in T_ if (t.get("from_52l") or 1) < 0.01),
+                       "median_ret_1m": r(float(np.median([t["ret_1m"] for t in T_ if t.get("ret_1m") is not None])), 4),
+                       "bull_stack": r(sum(1 for t in T_ if t.get("ema_stack") == 1) / n, 3),
+                       "bear_stack": r(sum(1 for t in T_ if t.get("ema_stack") == -1) / n, 3)}
+    return out_
+regime = regime_block()
+
+# ----------------------------------------------------------------------------- score history → "what changed"
+# kept inside fundamentals/ so the GitHub Actions cache (which already persists that folder) carries it between runs
+HIST = os.path.join(OUT, "fundamentals", "_history"); os.makedirs(HIST, exist_ok=True)
+hist_rows = []
+for s in stocks:
+    row = {"symbol": s["symbol"], "price": s["price"]}
+    for m in MODES:
+        row[f"score_{m}"] = s["scores"][m]["score"]; row[f"pass_{m}"] = int(not s["scores"][m]["gates"])
+    hist_rows.append(row)
+hist_df = pd.DataFrame(hist_rows)
+hist_df.to_csv(os.path.join(HIST, f"scores_{ASOF}.csv"), index=False)
+hfiles = sorted(f for f in os.listdir(HIST) if f.startswith("scores_") and f.endswith(".csv") and f != f"scores_{ASOF}.csv")
+# keep the folder small: at most ~90 runs
+for old in hfiles[:-90]:
+    try: os.remove(os.path.join(HIST, old))
+    except Exception: pass
+hfiles = hfiles[-90:]
+def load_hist(fname):
+    d = pd.read_csv(os.path.join(HIST, fname)).set_index("symbol"); return d
+prev1 = load_hist(hfiles[-1]) if hfiles else None
+prev5 = load_hist(hfiles[-5]) if len(hfiles) >= 5 else (load_hist(hfiles[0]) if hfiles else None)
+movers = {"prev_date": hfiles[-1][7:17] if hfiles else None, "prev5_date": (hfiles[-5] if len(hfiles) >= 5 else (hfiles[0] if hfiles else "scores_"))[7:17] or None, "modes": {}}
+for m in MODES:
+    cur_rank = {s["symbol"]: i for i, s in enumerate(sorted([x for x in stocks if not x["scores"][m]["gates"] and x["scores"][m]["score"] is not None], key=lambda x: -x["scores"][m]["score"]))}
+    top_now = {sym for sym, i in cur_rank.items() if i < 50}
+    mm = {"new_top50": [], "left_top50": [], "gainers": [], "losers": [], "newly_pass": [], "newly_fail": []}
+    if prev1 is not None and f"score_{m}" in prev1:
+        pv = prev1[prev1[f"pass_{m}"] == 1].sort_values(f"score_{m}", ascending=False)
+        top_prev = set(pv.index[:50])
+        mm["new_top50"] = sorted(top_now - top_prev, key=lambda x: cur_rank[x])[:15]
+        mm["left_top50"] = sorted(top_prev - top_now)[:15]
+        cur_scores = {s["symbol"]: s["scores"][m]["score"] for s in stocks if s["scores"][m]["score"] is not None}
+        deltas = [(sym, cur_scores[sym] - float(prev1.at[sym, f"score_{m}"])) for sym in cur_scores if sym in prev1.index and pd.notna(prev1.at[sym, f"score_{m}"])]
+        deltas.sort(key=lambda x: -x[1])
+        mm["gainers"] = [{"symbol": a, "d": r(b, 1)} for a, b in deltas[:10]]
+        mm["losers"] = [{"symbol": a, "d": r(b, 1)} for a, b in deltas[-10:][::-1]]
+        pass_now = {s["symbol"] for s in stocks if not s["scores"][m]["gates"]}
+        pass_prev = set(prev1[prev1[f"pass_{m}"] == 1].index)
+        mm["newly_pass"] = sorted(pass_now - pass_prev, key=lambda x: cur_rank.get(x, 9999))[:15]
+        mm["newly_fail"] = sorted(pass_prev - pass_now)[:15]
+    movers["modes"][m] = mm
+for s in stocks:
+    h = {}
+    for m in MODES:
+        sc = s["scores"][m]["score"]
+        d1 = (sc - float(prev1.at[s["symbol"], f"score_{m}"])) if prev1 is not None and s["symbol"] in prev1.index and sc is not None and pd.notna(prev1.at[s["symbol"], f"score_{m}"]) else None
+        d5 = (sc - float(prev5.at[s["symbol"], f"score_{m}"])) if prev5 is not None and s["symbol"] in prev5.index and sc is not None and pd.notna(prev5.at[s["symbol"], f"score_{m}"]) else None
+        h[m] = {"d1": r(d1, 1), "d5": r(d5, 1)}
+    s["hist"] = h
+# ----------------------------------------------------------------------------- live forward track record
+# every past run's top-10 (gates passed) marked to today's price, plus the gated-universe average from the same day.
+price_now = {s["symbol"]: s["price"] for s in stocks if s["price"]}
+track = {"modes": {}, "n_runs": len(hfiles)}
+for m in MODES:
+    rows_ = []
+    for f in hfiles:
+        d = f[7:17]
+        try: h = load_hist(f)
+        except Exception: continue
+        if f"score_{m}" not in h or "price" not in h: continue
+        elig = h[(h[f"pass_{m}"] == 1) & h[f"score_{m}"].notna() & h["price"].notna()].sort_values(f"score_{m}", ascending=False)
+        if len(elig) < 20: continue
+        sign = -1 if MODES[m]["dir"] == "short" else 1
+        def ret(sym):
+            p0 = float(elig.at[sym, "price"]); p1 = price_now.get(sym)
+            return sign * (p1 / p0 - 1) if p0 and p1 else None
+        top = [(sym, ret(sym)) for sym in elig.index[:10]]
+        top = [(a_, b_) for a_, b_ in top if b_ is not None]
+        uni = [ret(sym) for sym in elig.index]; uni = [x for x in uni if x is not None]
+        if not top or not uni: continue
+        rows_.append({"date": d, "days": int((pd.Timestamp(ASOF) - pd.Timestamp(d)).days), "top10": r(float(np.mean([b_ for _, b_ in top])), 4),
+                      "universe": r(float(np.mean(uni)), 4), "hit": r(float(np.mean([b_ > 0 for _, b_ in top])), 2),
+                      "picks": [{"s": a_, "r": r(b_, 4)} for a_, b_ in top]})
+    track["modes"][m] = rows_[::-1]  # newest first
+log(f"history: {len(hfiles)} prior runs on file; movers computed vs {movers['prev_date']}; track record rows: {sum(len(v) for v in track['modes'].values())}")
+
 factor_meta = {k: {"src": v[0], "higher": v[2], "pillar": v[3], "sector_rel": v[4], "lender": v[5], "nonlender": v[6]} for k, v in FACTORS.items()}
 out = {"built": datetime.now().strftime("%Y-%m-%d %H:%M"), "asof": ASOF, "data_built": bundle.get("built"), "mcap_floor_cr": bundle.get("mcap_floor_cr"),
-       "n": len(stocks), "index": index_ret, "sectors": sectors, "modes": MODES, "invert_for_short": INVERT_FOR_SHORT, "pillars": PILLARS, "factors": factor_meta, "stocks": stocks}
+       "n": len(stocks), "index": index_ret, "sectors": sectors, "regime": regime, "movers": movers, "track": track, "modes": MODES, "invert_for_short": INVERT_FOR_SHORT, "pillars": PILLARS, "factors": factor_meta, "stocks": stocks}
 with open(os.path.join(OUT, "model_output.json"), "w") as f:
     json.dump(out, f, separators=(",", ":"))
 log(f"wrote model_output.json ({os.path.getsize(os.path.join(OUT, 'model_output.json'))/1e6:.1f} MB)")

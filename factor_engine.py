@@ -438,11 +438,16 @@ PILLARS = ["quality", "growth", "balance", "cash", "valuation", "ownership", "tr
 
 
 MODES = {
-    "longterm":   {"label": "Long-term value", "dir": "long", "w": {"quality": 20, "growth": 15, "balance": 10, "cash": 10, "valuation": 15, "ownership": 5, "trend": 10, "momentum": 5, "rs": 5, "structure": 3, "volume": 2},
-                   "gates": {"turnover_min": 2, "pat_positive": True, "min_bars": 200}},
-    "swing_long": {"label": "Swing — long", "dir": "long", "w": {"quality": 8, "growth": 12, "balance": 4, "cash": 4, "valuation": 0, "ownership": 2, "trend": 18, "momentum": 20, "rs": 18, "structure": 9, "volume": 5},
-                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200}},
-    "swing_short": {"label": "Swing — short", "dir": "short", "w": {"quality": 8, "growth": 12, "balance": 6, "cash": 4, "valuation": 6, "ownership": 0, "trend": 18, "momentum": 18, "rs": 16, "structure": 8, "volume": 4},
+    # Weights and gates reflect the Aug-2026 point-in-time backtest: fundamentals help over a year and are noise
+    # over weeks, so the swing modes rank on technicals only and use fundamentals purely as gates.
+    "longterm":   {"label": "Long-term value", "dir": "long", "review": "1 year", "hold_note": "buy in the 50–200 EMA zone, review yearly",
+                   "w": {"quality": 20, "growth": 15, "balance": 10, "cash": 10, "valuation": 15, "ownership": 5, "trend": 10, "momentum": 5, "rs": 5, "structure": 3, "volume": 2},
+                   "gates": {"turnover_min": 2, "pat_positive": True, "min_bars": 200, "pe_min": 3, "other_inc_max": 0.30, "dilution_max": 0.25}},
+    "swing_long": {"label": "Swing — long", "dir": "long", "review": "2 weeks", "hold_note": "ride while it works; re-rank every two weeks, not monthly",
+                   "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
+                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200, "max_ext": 0.30, "pat_positive": True, "dilution_max": 0.10, "cfo_pat_min": 0.5}},
+    "swing_short": {"label": "Swing — short", "dir": "short", "review": "2 weeks", "hold_note": "no standalone edge in the backtest — use only with a bearish market regime",
+                    "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
                     "gates": {"turnover_min": 25, "below_ema200": True, "atr_pct_min": 0.015, "min_bars": 200}},
 }
 INVERT_FOR_SHORT = ["quality", "growth", "balance", "cash", "valuation", "trend", "momentum", "rs", "structure"]  # volume & ownership stay
@@ -464,14 +469,21 @@ def composite_row(pillars_row, mode, weights=None):
     return (num / wt) if wt > 0 else None, (measured / wt) if wt > 0 else 0.0
 
 
-def gate_fails(F, T, mode):
-    g = MODES[mode]["gates"]; out = []
+def gate_fails(F, T, mode, gates=None):
+    g = gates or MODES[mode]["gates"]; out = []
     if g.get("min_bars") and (T.get("bars") or 0) < g["min_bars"]: out.append("history")
     if g.get("turnover_min") and not ((T.get("turnover_20") or 0) >= g["turnover_min"]): out.append("turnover")
     if g.get("pat_positive") and not ((F.get("pat_ttm") or 0) > 0): out.append("loss-making")
     if g.get("above_ema200") and not ((T.get("vs_ema200") or 0) > 0): out.append("below 200 EMA")
     if g.get("below_ema200") and not ((T.get("vs_ema200") or 0) < 0): out.append("above 200 EMA")
     if g.get("atr_pct_min") and not ((T.get("atr_pct") or 0) >= g["atr_pct_min"]): out.append("ATR too low")
+    if g.get("max_ext") is not None and (T.get("vs_ema200") is not None) and T["vs_ema200"] > g["max_ext"]: out.append("over-extended")
+    if g.get("pe_min") and F.get("pe") is not None and F["pe"] < g["pe_min"]: out.append("P/E < %g (one-off gain?)" % g["pe_min"])
+    if g.get("other_inc_max") and F.get("other_inc_pbt") is not None and F["other_inc_pbt"] > g["other_inc_max"]: out.append("other income")
+    if g.get("dilution_max") is not None:
+        dil = F.get("dilution_3y") if F.get("dilution_3y") is not None else F.get("dilution_hist")
+        if dil is not None and dil > g["dilution_max"]: out.append("dilution")
+    if g.get("cfo_pat_min") is not None and not F.get("lender") and F.get("cfo_pat_3y") is not None and F["cfo_pat_3y"] < g["cfo_pat_min"]: out.append("cash conversion")
     return out
 
 

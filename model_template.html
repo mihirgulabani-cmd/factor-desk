@@ -53,7 +53,9 @@ a{color:var(--accent-ink)}
 .hide{display:none!important}
 
 /* ---------- top bar ---------- */
-.top{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:0 20px;display:flex;align-items:center;gap:18px;height:56px;white-space:nowrap}
+.top{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:6px 20px;display:flex;align-items:center;gap:14px;row-gap:6px;min-height:56px;white-space:nowrap;flex-wrap:wrap}
+@media (max-width:1320px){.brand .asof{display:none}}
+html{overflow-x:hidden}
 .brand{display:flex;align-items:baseline;gap:10px;flex:none}
 .brand h1{font-family:var(--cond);font-weight:700;font-size:19px;letter-spacing:-.01em;margin:0}
 .brand .asof{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
@@ -196,13 +198,18 @@ td.r{text-align:right}
 .flag.red{background:var(--down-soft)} .flag.amber{background:var(--warn-soft)} .flag.grey{background:var(--grey-soft);color:var(--ink-2)}
 .flag i{width:9px;height:9px;border-radius:50%;flex:none;margin-top:5px}
 .flag.red i{background:var(--down)} .flag.amber i{background:var(--warn)} .flag.grey i{background:var(--muted)}
-.plan{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.plan{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid1{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:14px}
+@media (max-width:1100px){.plan{grid-template-columns:1fr}}
 .plan .side{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .plan .side h4{margin:0 0 6px;font-family:var(--cond);font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .plan .side.long h4{color:var(--up)} .plan .side.short h4{color:var(--down)} .plan .side.lt h4{color:var(--accent-ink)}
-.plan .side div{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:2px 0;color:var(--ink-2)}
-.plan .side div b{text-align:right}
-.plan .side div b{font-family:var(--mono);font-weight:500;color:var(--ink)}
+.plan .side{min-width:0}
+.plan .side > div,.plan .side .size > div{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:2px 0;color:var(--ink-2)}
+.plan .side div b{text-align:right;font-family:var(--mono);font-weight:500;color:var(--ink);white-space:nowrap}
+.plan .side div b.txt{font-family:var(--sans);font-size:11.5px;white-space:normal;max-width:60%}
+.plan .side .size{display:block}
+.grid2 > *,.grid3 > *{min-width:0}
 .chart{width:100%;height:auto;display:block}
 .chart .grid{stroke:var(--line);stroke-width:1}
 .chart .ax{fill:var(--muted);font-family:var(--mono);font-size:10px}
@@ -226,13 +233,89 @@ textarea.notes{width:100%;min-height:96px;border:1px solid var(--line-2);border-
 .help{font-size:11.5px;color:var(--muted);line-height:1.5}
 kbd{font-family:var(--mono);font-size:10.5px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:4px;padding:0 4px}
 @media (prefers-reduced-motion:no-preference){.pl .bar i,.scorebar .bar i{transition:width .25s ease}}
+/* ---------- views ---------- */
+.views{display:flex;gap:2px;background:var(--surface-2);border-radius:8px;padding:3px;flex:none}
+.views button{border:0;background:transparent;padding:5px 11px;border-radius:6px;font-family:var(--cond);font-weight:600;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.views button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+#filtersbtn{display:none}
+/* ---------- regime ---------- */
+.regime{display:grid;grid-template-columns:auto 1fr;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow);align-items:start}
+.regime .big{min-width:190px}
+.regime .big .lbl{margin-bottom:2px}
+.regime .big .v{font-family:var(--cond);font-weight:700;font-size:26px;letter-spacing:.02em;line-height:1.05}
+.regime .big .v.trend{color:var(--up)} .regime .big .v.chop{color:var(--warn)}
+.regime .big .d{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.4}
+.breadth{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px 14px}
+.breadth .b .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--cond);font-weight:600;white-space:nowrap}
+.breadth .b .v{font-family:var(--mono);font-size:13px}
+.breadth .b .bar{height:5px;background:var(--bar-0);border-radius:2px;margin-top:4px;overflow:hidden}
+.breadth .b .bar i{display:block;height:100%;background:var(--bar-3)}
+.secstrip{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;grid-column:1/-1;min-width:0}
+.regime > *{min-width:0}
+.secstrip .sc{display:inline-flex;flex-direction:column;padding:5px 9px;border-radius:8px;background:var(--surface-2);font-size:11px;min-width:96px}
+.secstrip .sc b{font-family:var(--cond);font-weight:600;font-size:11.5px;color:var(--ink)}
+.secstrip .sc span{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.secstrip .sc.hot{background:var(--up-soft)} .secstrip .sc.cold{background:var(--down-soft)}
+/* ---------- movers ---------- */
+.movers{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.movers h4{margin:0 0 5px;font-family:var(--cond);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.movers .lst{display:flex;flex-wrap:wrap;gap:4px}
+.movers .lst button{border:1px solid var(--line-2);background:var(--surface);border-radius:6px;padding:2px 7px;font-family:var(--cond);font-weight:600;font-size:12px;color:var(--ink);cursor:pointer}
+.movers .lst button small{font-family:var(--mono);font-weight:400;color:var(--muted);margin-left:4px}
+.movers .lst button.up small{color:var(--up)} .movers .lst button.dn small{color:var(--down)}
+.delta{font-family:var(--mono);font-size:11px}
+/* ---------- sizing ---------- */
+.size{border-top:1px dashed var(--line-2);margin-top:8px;padding-top:6px}
+.size .warn{color:var(--down)}
+.cad{display:inline-block;font-family:var(--cond);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink)}
+/* ---------- backtest / method ---------- */
+.bt table{border-collapse:collapse;width:100%;min-width:720px}
+.bt th,.bt td{padding:6px 9px;border-bottom:1px solid var(--line);font-size:12.5px;text-align:right;font-family:var(--mono);white-space:nowrap}
+.bt th{font-family:var(--cond);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.bt td:first-child,.bt th:first-child{text-align:left;font-family:var(--sans)}
+.prose{max-width:74ch;font-size:13.5px;line-height:1.6}
+.prose h3{font-family:var(--cond);font-size:15px;margin:16px 0 6px}
+.prose p{margin:0 0 10px}
+.prose ul{margin:0 0 10px 18px;padding:0}
+.prose li{margin-bottom:4px}
+/* ---------- mobile ---------- */
+@media (max-width:760px){
+  body{font-size:13px}
+  .top{height:auto;flex-wrap:wrap;padding:8px 12px;gap:8px;row-gap:8px}
+  .brand h1{font-size:17px} .brand .asof{display:none}
+  .modes{order:5;width:100%;overflow-x:auto} .modes button{padding:6px 10px;font-size:12px;flex:1}
+  .views{order:6;width:100%} .views button{flex:1;padding:5px 6px;font-size:12px}
+  #filtersbtn{display:inline-flex} #drawerClose{display:flex!important}
+  #exportbtn{display:none}
+  .wrap{display:block}
+  .rail{display:none;position:fixed;inset:0;z-index:40;height:100vh;overflow-y:auto;padding:16px;border:0}
+  body.drawer .rail{display:block}
+  .main{padding:12px 10px 60px}
+  .strip{grid-template-columns:1fr 1fr;gap:8px} .tile .v{font-size:18px}
+  .regime{grid-template-columns:1fr;gap:10px} .regime .big{min-width:0}
+  .breadth{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 8px} .breadth .b .v{font-size:12px} .breadth .b .k{white-space:normal;font-size:9.5px}
+  .secstrip{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch} .secstrip .sc{flex:none}
+  table{min-width:0} thead th,tbody td{padding:6px 6px}
+  thead th:nth-child(2),tbody td:nth-child(2){position:sticky;left:0;background:var(--surface);z-index:2;box-shadow:2px 0 0 var(--line)}
+  thead th:nth-child(2){background:var(--surface-2)}
+  tbody tr:hover td{background:var(--surface)} tbody tr:hover td:nth-child(2){background:var(--surface)}
+  .symcell .nm{max-width:110px}
+  .shead{padding:14px} .shead h2{font-size:21px} .shead h2 small{display:block;margin:2px 0 0;font-size:13px}
+  .scores3{flex-wrap:wrap} .scores3 .sc{flex:1;min-width:90px}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .plan{grid-template-columns:1fr}
+  .kv{grid-template-columns:1fr 1fr}
+  .pl{grid-template-columns:84px 1fr 34px}
+}
 </style>
 </head>
 <body>
 <div class="top">
   <div class="brand"><h1>NSE Factor Desk</h1><span class="asof" id="asof"></span></div>
   <div class="modes" id="modes"></div>
+  <div class="views" id="views"></div>
   <div class="sp"></div>
+  <button class="iconbtn" id="filtersbtn">Filters</button>
   <button class="iconbtn" id="exportbtn" title="Download the current ranked list as CSV">CSV</button>
   <button class="iconbtn" id="themebtn" title="Theme: system / light / dark">Theme</button>
 </div>
@@ -242,9 +325,12 @@ kbd{font-family:var(--mono);font-size:10.5px;background:var(--surface-2);border:
 </div>
 <div class="tip" id="tip"></div>
 <script id="data" type="application/json">__DATA__</script>
+<script id="btdata" type="application/json">__BT__</script>
 <script>
 'use strict';
 const D = JSON.parse(document.getElementById('data').textContent);
+let BT = null; try { BT = JSON.parse(document.getElementById('btdata').textContent) } catch(e) { BT = null }
+const PDESC = {quality:'Returns on capital and margins — is this a good business?',growth:'Sales and profit growth, annual and latest quarter (date-matched)',balance:'Leverage, interest cover, dilution',cash:'Does profit turn into cash? CFO/PAT, FCF, other income, receivables',valuation:'P/E, P/B, EV/EBITDA, PEG — half-weighted against the sector',ownership:'Promoter/insider and institutional holding (current only)',trend:'Position vs 20/50/200 EMA, stack, 200 EMA slope',momentum:'3m, 6m, 12-1 returns and risk-adjusted momentum',rs:'Return relative to Nifty 500 over 3/6/12m and RS-line position',structure:'52w position, higher highs/lows, distance to breakout, efficiency, drawdown',volume:'Turnover, accumulation (up/down-day volume), volume expansion'};
 const PILLARS = D.pillars, MODES = D.modes, INV = new Set(D.invert_for_short);
 const FUND_P = new Set(['quality','growth','balance','cash','valuation','ownership']);
 const PLABEL = {quality:'Quality',growth:'Growth',balance:'Balance sheet',cash:'Cash conversion',valuation:'Valuation',ownership:'Ownership',trend:'Trend',momentum:'Momentum',rs:'Rel. strength',structure:'Structure',volume:'Volume'};
@@ -269,11 +355,14 @@ const S = {
   weights:Object.fromEntries(Object.keys(MODES).map(m=>[m,{...MODES[m].w}])),
   gates:Object.fromEntries(Object.keys(MODES).map(m=>[m,{...MODES[m].gates}])),
   useGates:true, hideGated:true,
+  size:Object.assign({pot:4000000,riskPct:1,openRiskPct:5},LS.get('size',{})),
   f:{q:'',sectors:new Set(),cap:'all',turnover:0,noRed:false,lenders:true,minScore:0,minCov:0.6,stars:false},
   sort:{key:'score',dir:-1},
   stars:new Set(LS.get('stars',[])), notes:LS.get('notes',{}),
 };
 const savedW = LS.get('weights',null); if(savedW){for(const m in savedW){if(S.weights[m])S.weights[m]={...S.weights[m],...savedW[m]}}}
+// weights saved before the Aug-2026 backtest revision are reset once so the new swing defaults apply
+if(LS.get('wver',0)<2){S.weights=Object.fromEntries(Object.keys(MODES).map(m=>[m,{...MODES[m].w}]));LS.set('weights',S.weights);LS.set('wver',2)}
 
 // ---------- helpers ----------
 const $ = (s,el=document)=>el.querySelector(s);
@@ -301,12 +390,23 @@ function gateFails(st,mode){ const g=S.gates[mode],T=st.T,F=st.F,out=[]; if(!S.u
   if(g.above_ema200&&!(T.vs_ema200>0))out.push('below 200 EMA');
   if(g.below_ema200&&!(T.vs_ema200<0))out.push('above 200 EMA');
   if(g.atr_pct_min&&!((T.atr_pct||0)>=g.atr_pct_min))out.push('ATR too low');
+  if(g.max_ext!=null&&isNum(T.vs_ema200)&&T.vs_ema200>g.max_ext)out.push('over-extended');
+  if(g.pe_min&&isNum(F.pe)&&F.pe<g.pe_min)out.push('P/E < '+g.pe_min);
+  if(g.other_inc_max&&isNum(F.other_inc_pbt)&&F.other_inc_pbt>g.other_inc_max)out.push('other income');
+  if(g.dilution_max!=null){const dil=isNum(F.dilution_3y)?F.dilution_3y:F.dilution_hist; if(isNum(dil)&&dil>g.dilution_max)out.push('dilution')}
+  if(g.cfo_pat_min!=null&&!st.lender&&isNum(F.cfo_pat_3y)&&F.cfo_pat_3y<g.cfo_pat_min)out.push('cash conversion');
+  if(g.no_red&&st.n_red>0)out.push('red flag');
   return out }
+// position sizing from the rulebook: risk = pot × risk%; qty = risk / (entry − stop)
+function sizing(entry,stop){ const z=S.size; const riskRs=z.pot*z.riskPct/100; const per=Math.abs(entry-stop); if(!(per>0)||!(entry>0))return null;
+  const qty=Math.floor(riskRs/per); const notional=qty*entry; const capRs=z.pot*z.openRiskPct/100;
+  return {riskRs,per,qty,notional,pctPot:notional/z.pot,slots:Math.floor(capRs/riskRs),capRs} }
+function fmtRs(v){ if(!isNum(v))return '–'; if(Math.abs(v)>=1e7)return '₹'+(v/1e7).toFixed(2)+' Cr'; if(Math.abs(v)>=1e5)return '₹'+(v/1e5).toFixed(2)+' L'; return '₹'+fmtIN(v,0) }
 let ROWS=[];
 function computeRows(){ const m=S.mode; ROWS=D.stocks.map(st=>{const c=composite(st,m);return {st,score:c.score,cov:c.cov,fails:gateFails(st,m)}}) }
 function filtered(){ const f=S.f,[lo,hi]=CAPBANDS[f.cap]; const q=f.q.trim().toUpperCase();
   return ROWS.filter(r=>{const s=r.st; if(q&&!(s.symbol.includes(q)||s.name.toUpperCase().includes(q)))return false; if(f.sectors.size&&!f.sectors.has(s.sector))return false; if(s.mcap_cr<lo||s.mcap_cr>=hi)return false; if(f.turnover&&!((s.T.turnover_20||0)>=f.turnover))return false; if(f.noRed&&s.n_red>0)return false; if(!f.lenders&&s.lender)return false; if(f.stars&&!S.stars.has(s.symbol))return false; if(!isNum(r.score))return false; if(r.score<f.minScore)return false; if(r.cov<f.minCov)return false; if(S.hideGated&&r.fails.length)return false; return true}) }
-function sortRows(rows){ const {key,dir}=S.sort; const get=r=>{ if(key==='score')return r.score; if(key==='symbol')return r.st.symbol; if(key==='mcap')return r.st.mcap_cr; if(key==='price')return r.st.price; if(key==='flags')return r.st.n_red*10+r.st.n_amber; if(key.startsWith('p:'))return r.st.pillars[key.slice(2)]; if(key.startsWith('F:'))return r.st.F[key.slice(2)]; if(key.startsWith('T:'))return r.st.T[key.slice(2)]; return null };
+function sortRows(rows){ const {key,dir}=S.sort; const get=r=>{ if(key==='score')return r.score; if(key==='delta')return (r.st.hist||{})[S.mode]?.d1; if(key==='symbol')return r.st.symbol; if(key==='mcap')return r.st.mcap_cr; if(key==='price')return r.st.price; if(key==='flags')return r.st.n_red*10+r.st.n_amber; if(key.startsWith('p:'))return r.st.pillars[key.slice(2)]; if(key.startsWith('F:'))return r.st.F[key.slice(2)]; if(key.startsWith('T:'))return r.st.T[key.slice(2)]; return null };
   return rows.slice().sort((a,b)=>{const va=get(a),vb=get(b); const na=va==null||(typeof va==='number'&&!isFinite(va)),nb=vb==null||(typeof vb==='number'&&!isFinite(vb)); if(na&&nb)return 0; if(na)return 1; if(nb)return -1; if(typeof va==='string')return dir*va.localeCompare(vb); return dir*(va-vb)}) }
 
 // ---------- columns per mode ----------
@@ -321,7 +421,11 @@ function fmtCol(f,v){ if(!isNum(v))return '–'; switch(f){case 'x1':return v.to
 function renderTop(){
   $('#asof').textContent = `prices to ${D.asof} · ${D.n} stocks ≥ ₹${fmtIN(D.mcap_floor_cr)} Cr`;
   $('#modes').innerHTML = Object.keys(MODES).map(m=>`<button data-m="${m}" class="${S.mode===m?'on '+(MODES[m].dir==='short'?'short':m==='swing_long'?'long':''):''}">${esc(MODES[m].label)}</button>`).join('');
-  $('#modes').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;S.sort={key:'score',dir:-1};render()});
+  $('#modes').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;S.sort={key:'score',dir:-1};if(S.view==='stock')S.view='table';render()});
+  const VIEWS=[['table','Ranking'],['watch','Watchlist'],['backtest','Backtest'],['method','Method']];
+  $('#views').innerHTML=VIEWS.map(([k,l])=>`<button data-v="${k}" class="${(S.view===k||(k==='table'&&S.view==='stock'))?'on':''}">${l}${k==='watch'&&S.stars.size?` <small>${S.stars.size}</small>`:''}</button>`).join('');
+  $('#views').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.view=b.dataset.v;document.body.classList.remove('drawer');window.scrollTo(0,0);render()});
+  $('#filtersbtn').onclick=()=>document.body.classList.toggle('drawer');
   const ix=D.index, n50=ix.NIFTY50||{}, n500=ix.NIFTY500||{}, mid=ix.NIFTYMIDCAP50||{}, sml=ix.NIFTYSMALLCAP||{};
   const breadth = D.stocks.filter(s=>isNum(s.T.vs_ema200)); const above=breadth.filter(s=>s.T.vs_ema200>0).length/Math.max(1,breadth.length);
   const nh = D.stocks.filter(s=>isNum(s.T.from_52h)&&s.T.from_52h>-0.03).length;
@@ -334,6 +438,7 @@ function renderRail(){
   const m=S.mode, w=S.weights[m], g=S.gates[m]; const sectors=Object.keys(D.sectors).sort();
   const wsum = PILLARS.reduce((a,p)=>a+(w[p]||0),0); const fsum=PILLARS.filter(p=>FUND_P.has(p)).reduce((a,p)=>a+(w[p]||0),0);
   $('#rail').innerHTML = `
+  <button class="iconbtn" id="drawerClose" style="display:none;margin-bottom:12px;width:100%;justify-content:center">Done — back to the list</button>
   <div class="sec"><h3>Find</h3>
     <div class="field"><input type="text" id="q" placeholder="Symbol or name" value="${esc(S.f.q)}"></div>
     <label class="tog"><input type="checkbox" id="stars" ${S.f.stars?'checked':''}> Watchlist only (★)</label>
@@ -342,6 +447,8 @@ function renderRail(){
     <div class="help" style="margin-bottom:6px">${gateText(m)}</div>
     <div class="row"><div class="field"><label>Min turnover ₹Cr/day</label><input type="number" id="g_turn" value="${g.turnover_min||0}" min="0" step="5"></div>
     ${g.atr_pct_min!=null?`<div class="field"><label>Min ATR %</label><input type="number" id="g_atr" value="${(g.atr_pct_min*100).toFixed(1)}" min="0" step="0.1"></div>`:''}</div>
+    ${MODES[m].dir==='long'&&m!=='longterm'?`<div class="row"><div class="field"><label>Max % above 200 EMA</label><input type="number" id="g_ext" value="${g.max_ext!=null?(g.max_ext*100).toFixed(0):''}" placeholder="off" min="0" step="5"></div><div class="field"><label>Max dilution 3y %</label><input type="number" id="g_dil" value="${g.dilution_max!=null?(g.dilution_max*100).toFixed(0):''}" placeholder="off" min="0" step="5"></div></div>`:''}
+    <label class="tog"><input type="checkbox" id="noRedGate" ${g.no_red?'checked':''}> Also require zero red flags</label>
     <label class="tog"><input type="checkbox" id="hideGated" ${S.hideGated?'checked':''}> Hide names that fail a gate</label>
   </div>
   <div class="sec"><h3>Filters <button id="clearF">clear</button></h3>
@@ -356,12 +463,21 @@ function renderRail(){
     <div class="wsum"><span>Fundamental <b>${wsum?Math.round(fsum/wsum*100):0}%</b> · Technical <b>${wsum?Math.round((wsum-fsum)/wsum*100):0}%</b></span><span>Σ <b>${wsum}</b></span></div>
     ${MODES[m].dir==='short'?`<div class="help" style="margin-top:6px">Short mode inverts every pillar except Ownership and Volume: weak fundamentals, rich valuation and a broken chart score high.</div>`:''}
   </div>
+  <div class="sec"><h3>Sizing <span style="font-weight:400;letter-spacing:0;text-transform:none">rulebook</span></h3>
+    <div class="row"><div class="field"><label>Pot ₹</label><input type="number" id="sz_pot" value="${S.size.pot}" step="100000"></div><div class="field"><label>Risk / trade %</label><input type="number" id="sz_risk" value="${S.size.riskPct}" step="0.25" min="0.1"></div><div class="field"><label>Open-risk cap %</label><input type="number" id="sz_cap" value="${S.size.openRiskPct}" step="1" min="1"></div></div>
+    <div class="help">Risk per trade ${fmtRs(S.size.pot*S.size.riskPct/100)} → up to ${Math.floor(S.size.openRiskPct/S.size.riskPct)} positions open at once.</div>
+  </div>
   <div class="sec"><h3>How to read</h3><div class="help">Each factor is a percentile inside this universe (valuation half-weighted against the sector). Pillars average their factors; a pillar with under half its data is blank and counts as neutral 50 in the composite — unknown is not good. Coverage shows how much of the weight was actually measured. Nothing here is advice — it is a ranking of where to spend research time.</div></div>`;
   $('#q').oninput=e=>{S.f.q=e.target.value;renderMain()};
+  $('#drawerClose').onclick=()=>document.body.classList.remove('drawer');
   $('#stars').onchange=e=>{S.f.stars=e.target.checked;renderMain()};
   $('#gatesToggle').onclick=()=>{S.useGates=!S.useGates;render()};
   $('#g_turn').onchange=e=>{S.gates[m].turnover_min=+e.target.value||0;render()};
   const ga=$('#g_atr'); if(ga)ga.onchange=e=>{S.gates[m].atr_pct_min=(+e.target.value||0)/100;render()};
+  const ge=$('#g_ext'); if(ge)ge.onchange=e=>{S.gates[m].max_ext=e.target.value===''?null:(+e.target.value)/100;render()};
+  const gd=$('#g_dil'); if(gd)gd.onchange=e=>{S.gates[m].dilution_max=e.target.value===''?null:(+e.target.value)/100;render()};
+  $('#noRedGate').onchange=e=>{S.gates[m].no_red=e.target.checked;render()};
+  for(const [id,k] of [['sz_pot','pot'],['sz_risk','riskPct'],['sz_cap','openRiskPct']]){$('#'+id).onchange=e=>{S.size[k]=+e.target.value||S.size[k];LS.set('size',S.size);render()}}
   $('#hideGated').onchange=e=>{S.hideGated=e.target.checked;renderMain()};
   $('#clearF').onclick=()=>{S.f={...S.f,q:'',sectors:new Set(),cap:'all',turnover:0,noRed:false,lenders:true,minScore:0,minCov:0.6,stars:false};render()};
   $('#cap').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.f.cap=b.dataset.k;render()});
@@ -373,7 +489,33 @@ function renderRail(){
   $('#resetW').onclick=()=>{S.weights[m]={...MODES[m].w};LS.set('weights',S.weights);render()};
   $('#rail').querySelectorAll('input[type=range]').forEach(r=>{r.oninput=()=>{S.weights[m][r.dataset.p]=+r.value;r.parentElement.querySelector('.num').textContent=r.value};r.onchange=()=>{LS.set('weights',S.weights);render()}});
 }
-function gateText(m){const g=S.gates[m];const t=[];if(g.pat_positive)t.push('TTM profit > 0');if(g.above_ema200)t.push('close above 200 EMA');if(g.below_ema200)t.push('close below 200 EMA');if(g.min_bars)t.push(`≥ ${g.min_bars} bars`);return (S.useGates?'Active: ':'Off — ')+t.join(' · ')}
+function gateText(m){const g=S.gates[m];const t=[];if(g.pat_positive)t.push('TTM profit > 0');if(g.above_ema200)t.push('above 200 EMA');if(g.below_ema200)t.push('below 200 EMA');if(g.min_bars)t.push(`≥ ${g.min_bars} bars`);if(g.pe_min)t.push(`P/E ≥ ${g.pe_min}`);if(g.other_inc_max)t.push(`other income ≤ ${Math.round(g.other_inc_max*100)}% of PBT`);if(g.dilution_max!=null)t.push(`dilution ≤ ${Math.round(g.dilution_max*100)}%`);if(g.cfo_pat_min!=null)t.push(`CFO/PAT 3y ≥ ${g.cfo_pat_min}`);return (S.useGates?'Active: ':'Off — ')+t.join(' · ')}
+
+// ---------- regime + movers ----------
+function regimePanel(){ const R=D.regime||{}; const B=R.breadth||{}; if(!isNum(R.eff_ratio_60))return '';
+  const chop=R.regime==='CHOPPY';
+  const bar=(k,v,l)=>`<div class="b"><div class="k">${l}</div><div class="v">${isNum(v)?(v*100).toFixed(0)+'%':'–'}</div><div class="bar"><i style="width:${isNum(v)?(v*100).toFixed(0):0}%"></i></div></div>`;
+  const secs=Object.entries(D.sectors).filter(([k,v])=>k!=='Unknown'&&isNum(v.ret_1m)).sort((a,b)=>b[1].ret_1m-a[1].ret_1m);
+  return `<div class="regime">
+    <div class="big"><div class="lbl">Market regime · ${esc(R.index||'')}</div><div class="v ${chop?'chop':'trend'}">${chop?'CHOPPY':'TRENDING'}</div>
+      <div class="d">60-day efficiency ratio ${R.eff_ratio_60.toFixed(3)} · ${Math.round(R.eff_ratio_pctl*100)}th pctile of the last 4y<br>Nifty 500 ${spct(R.ret_1m)} 1m · ${spct(R.ret_3m)} 3m · ${spct(R.vs_ema200)} vs 200E · ${spct(R.dd_from_high_1y)} from 1y high<br><span style="color:var(--ink-2)">${chop?'In chop the average name loses; only the top of the ranking has paid. Raise the bar, cut size.':'In a trend most gated names work; selection matters less than staying in.'}</span></div></div>
+    <div class="breadth">${bar('a20',B.above_20,'Above 20 EMA')}${bar('a50',B.above_50,'Above 50 EMA')}${bar('a200',B.above_200,'Above 200 EMA')}${bar('bull',B.bull_stack,'Bull EMA stack')}${bar('bear',B.bear_stack,'Bear EMA stack')}
+      <div class="b"><div class="k">52w highs / lows</div><div class="v"><span class="pos">${B.new_52w_high??'–'}</span> / <span class="neg">${B.new_52w_low??'–'}</span></div></div>
+      <div class="b"><div class="k">Median 1m return</div><div class="v ${cls(B.median_ret_1m)}">${spct(B.median_ret_1m)}</div></div></div>
+    <div class="secstrip">${secs.map(([k,v])=>`<div class="sc ${v.ret_1m>0.03?'hot':v.ret_1m<-0.03?'cold':''}" title="${esc(k)} · ${v.n} names · ${Math.round((v.pct_above_200||0)*100)}% above 200 EMA"><b>${esc(k)}</b><span>${spct(v.ret_1m)} 1m · ${spct(v.ret_3m)} 3m</span><span style="color:var(--muted)">${Math.round((v.pct_above_200||0)*100)}% &gt; 200E</span></div>`).join('')}</div>
+  </div>` }
+function moversPanel(){ const M=D.movers; const m=S.mode; if(!M)return '';
+  const mm=(M.modes||{})[m]; if(!M.prev_date||!mm) return `<div class="card" style="margin-bottom:14px"><h3>What changed <span>first run — movers appear from the next refresh</span></h3></div>`;
+  const chips=(arr,cl)=>arr.length?arr.map(x=>{const sym=typeof x==='string'?x:x.symbol;const d=typeof x==='string'?null:x.d;return `<button data-s="${sym}" class="${isNum(d)?(d>0?'up':'dn'):''}">${sym}${isNum(d)?`<small>${d>0?'+':''}${d.toFixed(1)}</small>`:''}</button>`}).join(''):'<span class="help">none</span>';
+  return `<div class="card" style="margin-bottom:14px"><h3>What changed since ${esc(M.prev_date)} <span>${esc(MODES[m].label)} · top-50 membership and score moves</span></h3>
+    <div class="movers"><div><h4>New in top 50</h4><div class="lst">${chips(mm.new_top50)}</div></div><div><h4>Dropped out of top 50</h4><div class="lst">${chips(mm.left_top50)}</div></div><div><h4>Biggest score gains</h4><div class="lst">${chips(mm.gainers)}</div></div><div><h4>Biggest score falls</h4><div class="lst">${chips(mm.losers)}</div></div><div><h4>Newly pass gates</h4><div class="lst">${chips(mm.newly_pass)}</div></div><div><h4>Newly fail gates</h4><div class="lst">${chips(mm.newly_fail)}</div></div></div></div>` }
+
+function trackPanel(full){ const T=(D.track||{}).modes||{}; const rows=T[S.mode]||[]; if(!rows.length) return full?'<div class="card" style="margin-bottom:14px"><h3>Live track record <span>accumulates from the second daily build onward</span></h3><div class="help">Every build stores that day\'s top-10; from the next build this shows how each list has done since, against the gated universe from the same day. No look-ahead is possible — the lists were published before the returns happened.</div></div>':'';
+  const show=full?rows:rows.slice(0,8);
+  const avgT=rows.reduce((a,r)=>a+r.top10,0)/rows.length, avgU=rows.reduce((a,r)=>a+r.universe,0)/rows.length, beat=rows.filter(r=>r.top10>r.universe).length/rows.length;
+  return `<div class="card" style="margin-bottom:14px"><h3>Live track record · ${esc(MODES[S.mode].label)} <span>${rows.length} past lists · top-10 avg ${spct(avgT)} vs universe ${spct(avgU)} · beat it ${(beat*100).toFixed(0)}% of the time</span></h3>
+    <div class="finwrap bt"><table><thead><tr><th>Published</th><th>Days</th><th>Top-10 since</th><th>Gated universe since</th><th>Picks up</th><th style="text-align:left">The ten (return since)</th></tr></thead><tbody>${show.map(r=>`<tr><td>${r.date}</td><td>${r.days}</td><td class="${cls(r.top10)}"><b>${spct(r.top10)}</b></td><td class="${cls(r.universe)}">${spct(r.universe)}</td><td>${(r.hit*100).toFixed(0)}%</td><td style="text-align:left;font-family:var(--sans);font-size:11px">${r.picks.map(p=>`<span style="white-space:nowrap">${esc(p.s)} <span class="${cls(p.r)}">${spct(p.r,0)}</span></span>`).join(' · ')}</td></tr>`).join('')}</tbody></table></div>
+    ${!full&&rows.length>8?`<div class="help" style="margin-top:6px">${rows.length-8} older lists in the Backtest tab.</div>`:''}</div>` }
 
 // ---------- render: table ----------
 function renderTable(){
@@ -388,20 +530,22 @@ function renderTable(){
     <div class="tile"><div class="lbl">Red-flagged</div><div class="v">${rows.filter(r=>r.st.n_red>0).length}</div><div class="d">in the current list</div></div>
     <div class="tile"><div class="lbl">Watchlist</div><div class="v">${S.stars.size}</div><div class="d">starred names</div></div>
   </div>`;
-  $('#main').innerHTML = `<div class="chips" id="mktchips">${window.__mkt||''}</div>` + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking</h2><span class="sub">click a column to sort · click a row for the full page · dimmed rows fail a gate</span></div>
-  <div class="tblwrap"><table><thead><tr><th></th>${th('symbol','Stock')}<th>Sector</th>${th('mcap','Mcap ₹Cr','r')}${th('price','Price','r')}${th('score','Score')}<th title="Pillars: quality, growth, balance, cash, valuation, ownership | trend, momentum, RS, structure, volume">Pillars</th>${cols.map(c=>th(c[0],c[1],'r')).join('')}${th('flags','Flags')}<th>Gate</th></tr></thead>
-  <tbody>${shown.length?shown.map((r,i)=>{const s=r.st;const [src,k]=['',''];return `<tr data-s="${s.symbol}" class="${r.fails.length?'gated':''}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${S.stars.has(s.symbol)?'<span style="color:var(--warn)">★</span> ':''}${esc(s.symbol)}</span><span class="nm" title="${esc(s.name)}">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${fmtIN(s.mcap_cr)}</td><td class="r num">${px(s.price)}</td><td><div class="scorebar"><div class="bar"><i style="width:${r.score.toFixed(0)}%;background:${barColor(r.score)}"></i></div><b>${r.score.toFixed(0)}</b></div></td><td>${strip(s)}</td>${cols.map(c=>{const [key,,f]=c;const [src,k]=key.split(':');const v=s[src][k];return `<td class="r num ${f==='spct'?cls(v):''}">${fmtCol(f,v)}</td>`}).join('')}<td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td></tr>`}).join(''):`<tr><td colspan="20" class="empty">Nothing matches. Loosen a filter or a gate.</td></tr>`}</tbody></table>
+  const hasHist=!!(D.movers&&D.movers.prev_date);
+  $('#main').innerHTML = regimePanel() + moversPanel() + trackPanel(false) + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking <span class="cad">review every ${esc(MODES[m].review||'')}</span></h2><span class="sub">${esc(MODES[m].hold_note||'')} · click a row for the full page</span></div>
+  <div class="tblwrap"><table><thead><tr><th></th>${th('symbol','Stock')}<th>Sector</th>${th('mcap','Mcap ₹Cr','r')}${th('price','Price','r')}${th('score','Score')}${hasHist?th('delta','Δ1d'):''}<th title="Pillars: quality, growth, balance, cash, valuation, ownership | trend, momentum, RS, structure, volume">Pillars</th>${cols.map(c=>th(c[0],c[1],'r')).join('')}${th('flags','Flags')}<th>Gate</th></tr></thead>
+  <tbody>${shown.length?shown.map((r,i)=>{const s=r.st;const [src,k]=['',''];return `<tr data-s="${s.symbol}" class="${r.fails.length?'gated':''}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${S.stars.has(s.symbol)?'<span style="color:var(--warn)">★</span> ':''}${esc(s.symbol)}</span><span class="nm" title="${esc(s.name)}">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${fmtIN(s.mcap_cr)}</td><td class="r num">${px(s.price)}</td><td><div class="scorebar"><div class="bar"><i style="width:${r.score.toFixed(0)}%;background:${barColor(r.score)}"></i></div><b>${r.score.toFixed(0)}</b></div></td>${hasHist?`<td class="r delta ${cls((s.hist||{})[m]?.d1)}">${isNum((s.hist||{})[m]?.d1)?((s.hist[m].d1>0?'+':'')+s.hist[m].d1.toFixed(1)):'–'}</td>`:''}<td>${strip(s)}</td>${cols.map(c=>{const [key,,f]=c;const [src,k]=key.split(':');const v=s[src][k];return `<td class="r num ${f==='spct'?cls(v):''}">${fmtCol(f,v)}</td>`}).join('')}<td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td></tr>`}).join(''):`<tr><td colspan="20" class="empty">Nothing matches. Loosen a filter or a gate.</td></tr>`}</tbody></table>
   ${rows.length>S.limit?`<div class="more"><button id="more">Show ${Math.min(150,rows.length-S.limit)} more (${rows.length-S.limit} remaining)</button></div>`:''}</div>`;
   $('#main').querySelectorAll('thead th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(S.sort.key===k)S.sort.dir*=-1;else S.sort={key:k,dir:k==='symbol'?1:-1};renderMain()});
   $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=()=>openStock(t.dataset.s));
+  $('#main').querySelectorAll('.movers button[data-s]').forEach(b=>b.onclick=()=>openStock(b.dataset.s));
   const mb=$('#more'); if(mb)mb.onclick=()=>{S.limit+=150;renderMain()};
   window.__rows=rows;
 }
 
 // ---------- render: stock page ----------
-function openStock(sym){S.view='stock';S.sym=sym;window.scrollTo(0,0);renderMain()}
-function closeStock(){S.view='table';S.sym=null;renderMain()}
-function factorRows(st,p){ return Object.entries(D.factors).filter(([k,f])=>f.pillar===p&&(st.lender?f.lender:f.nonlender)).map(([k,f])=>{const v=st[f.src][k];const pc=st.pct[k];return `<div><span>${esc((FL[k]||[k])[0])}${f.sector_rel?' <span class="vs">· sector-rel.</span>':''}</span><span class="num">${fmtF(k,v)}</span><span class="pc">${isNum(pc)?'p'+pc.toFixed(0):'–'}</span></div>`}).join('') }
+function openStock(sym){S.viewBack=S.view==='stock'?S.viewBack||'table':S.view;S.view='stock';S.sym=sym;document.body.classList.remove('drawer');window.scrollTo(0,0);renderTop();renderMain()}
+function closeStock(){S.view=S.viewBack||'table';S.sym=null;renderTop();renderMain()}
+function factorRows(st,p){ return `<div style="grid-template-columns:1fr;color:var(--muted);font-style:italic">${esc(PDESC[p]||'')}</div>`+Object.entries(D.factors).filter(([k,f])=>f.pillar===p&&(st.lender?f.lender:f.nonlender)).map(([k,f])=>{const v=st[f.src][k];const pc=st.pct[k];return `<div><span>${esc((FL[k]||[k])[0])}${f.sector_rel?' <span class="vs">· sector-rel.</span>':''}</span><span class="num">${fmtF(k,v)}</span><span class="pc">${isNum(pc)?'p'+pc.toFixed(0):'–'}</span></div>`}).join('') }
 function renderStock(){
   const st=D.stocks.find(s=>s.symbol===S.sym); if(!st){closeStock();return}
   const F=st.F,T=st.T,fin=st.fin; const sc=Object.fromEntries(Object.keys(MODES).map(m=>[m,composite(st,m)])); const fails=Object.fromEntries(Object.keys(MODES).map(m=>[m,gateFails(st,m)]));
@@ -410,7 +554,7 @@ function renderStock(){
   const pcell=(v,f)=>`<span class="${cls(v)}">${f(v)}</span>`;
   const rng=isNum(T.pos_52)?T.pos_52:0.5;
   // ---- header
-  let html=`<button class="back" id="back">← Back to ${esc(MODES[m].label)} ranking</button>
+  let html=`<button class="back" id="back">← Back to ${S.viewBack==='watch'?'watchlist':esc(MODES[m].label)+' ranking'}</button>
   <div class="shead"><div>
     <h2>${esc(st.symbol)}<small>${esc(st.name)}</small></h2>
     <div class="meta"><span>${esc(st.sector)} · ${esc(st.industry)}${st.lender?' · <em>lender model</em>':''}</span><span>${mcapBand(st.mcap_cr)} cap · ₹${fmtIN(st.mcap_cr)} Cr</span><span>₹${px(st.price)}</span><span>${isNum(T.ret_1m)?'1m '+pcell(T.ret_1m,spct):''} ${isNum(T.ret_3m)?'· 3m '+pcell(T.ret_3m,spct):''} ${isNum(T.ret_12m)?'· 12m '+pcell(T.ret_12m,spct):''}</span>
@@ -418,16 +562,21 @@ function renderStock(){
     <div class="range52"><div class="ends"><span>52w low ₹${px(T.lo52)}</span><span>${isNum(T.from_52h)?pcell(T.from_52h,v=>spct(v)+' from high'):''}</span><span>52w high ₹${px(T.hi52)}</span></div><div class="track"><i style="left:${(rng*100).toFixed(1)}%"></i></div></div>
     ${st.summary?`<div class="desc">${esc(st.summary)}${st.website?` <a href="${esc(st.website)}" target="_blank" rel="noopener">site ↗</a>`:''}</div>`:''}
   </div>
-  <div class="scores3">${Object.keys(MODES).map(k=>`<div class="sc"><div class="lbl">${esc(MODES[k].label)}</div><div class="v">${isNum(sc[k].score)?sc[k].score.toFixed(0):'–'}</div><div class="m"><i style="width:${isNum(sc[k].score)?sc[k].score.toFixed(0):0}%;background:${isNum(sc[k].score)?barColor(sc[k].score):'transparent'}"></i></div><div class="g">${fails[k].length?'✗ '+esc(fails[k].join(', ')):'✓ gates'} · cov ${(sc[k].cov*100).toFixed(0)}%</div></div>`).join('')}</div></div>`;
+  <div class="scores3">${Object.keys(MODES).map(k=>`<div class="sc"><div class="lbl">${esc(MODES[k].label)}</div><div class="v">${isNum(sc[k].score)?sc[k].score.toFixed(0):'–'}</div><div class="m"><i style="width:${isNum(sc[k].score)?sc[k].score.toFixed(0):0}%;background:${isNum(sc[k].score)?barColor(sc[k].score):'transparent'}"></i></div><div class="g">${fails[k].length?'✗ '+esc(fails[k].join(', ')):'✓ gates'} · cov ${(sc[k].cov*100).toFixed(0)}%${isNum((st.hist||{})[k]?.d1)?` · <span class="${cls(st.hist[k].d1)}">${st.hist[k].d1>0?'+':''}${st.hist[k].d1.toFixed(1)} 1d</span>`:''}</div></div>`).join('')}</div></div>`;
   // ---- pillars + flags + plan
-  html+=`<div class="grid3">
+  html+=`<div class="grid2">
     <div class="card"><h3>Pillars <span>percentile in universe · click to expand</span></h3><div class="pillars">${PILLARS.map(p=>{const v=st.pillars[p];const cov=st.pillar_cov[p];return `<div class="pl ${isNum(v)?'':'na'}" data-p="${p}"><span class="n">${PLABEL[p]}<span class="cov">${Math.round(cov*100)}%</span></span><div class="bar"><i style="width:${isNum(v)?v.toFixed(0):0}%;background:${isNum(v)?barColor(v):'transparent'}"></i></div><span class="v">${isNum(v)?v.toFixed(0):'n/a'}</span></div><div class="fx" id="fx-${p}">${factorRows(st,p)}</div>`}).join('')}</div></div>
     <div class="card"><h3>Red flags <span>${st.n_red} red · ${st.n_amber} amber</span></h3><div class="flags">${st.flags.length?st.flags.map(f=>`<div class="flag ${f.sev}"><i></i><span>${esc(f.text)}</span></div>`).join(''):'<div class="help">Nothing tripped. That is not the same as clean — read the concalls.</div>'}</div>
       <h3 style="margin-top:14px">Notes <span>saved in this browser</span></h3><textarea class="notes" id="notes" placeholder="Thesis, what would make you wrong, levels you care about…">${esc(S.notes[st.symbol]||'')}</textarea></div>
-    <div class="card"><h3>Trade plan <span>ATR ${isNum(T.atr_pct)?(T.atr_pct*100).toFixed(1)+'%':'–'} · stop 2×ATR · T1 1:2 · T2 1:3</span></h3>${st.levels?`<div class="plan">
-      <div class="side long"><h4>Swing long</h4><div><span>Trigger (20d high)</span><b>${px(st.levels.long.trigger)}</b></div><div><span>Stop</span><b>${px(st.levels.long.stop)}</b></div><div><span>Alt stop (20d low / 50E)</span><b>${px(st.levels.long.alt_stop)}</b></div><div><span>T1</span><b>${px(st.levels.long.t1)}</b></div><div><span>T2</span><b>${px(st.levels.long.t2)}</b></div><div><span>R:R from here</span><b>${isNum(st.levels.long.rr_at_mkt)?st.levels.long.rr_at_mkt.toFixed(2):'–'}</b></div></div>
-      <div class="side short"><h4>Swing short</h4><div><span>Trigger (20d low)</span><b>${px(st.levels.short.trigger)}</b></div><div><span>Stop</span><b>${px(st.levels.short.stop)}</b></div><div><span>Alt stop (20d high / 50E)</span><b>${px(st.levels.short.alt_stop)}</b></div><div><span>T1</span><b>${px(st.levels.short.t1)}</b></div><div><span>T2</span><b>${px(st.levels.short.t2)}</b></div></div>
-      <div class="side lt" style="grid-column:1/-1"><h4>Long-term</h4><div><span>Accumulate zone (50–200 EMA)</span><b>${px(st.levels.lt.buy_zone_lo)} – ${px(st.levels.lt.buy_zone_hi)}</b></div><div><span>Position stop</span><b>${px(st.levels.lt.stop)}</b></div><div><span>Invalidation</span><b style="font-family:var(--sans);font-size:11.5px">${esc(st.levels.lt.invalidation)}</b></div></div></div>`:'<div class="help">Not enough price history.</div>'}</div>
+  </div><div class="grid1">
+    <div class="card"><h3>Trade plan <span>ATR ${isNum(T.atr_pct)?(T.atr_pct*100).toFixed(1)+'%':'–'} · stop 2×ATR · T1 1:2 · T2 1:3 · risk ${fmtRs(S.size.pot*S.size.riskPct/100)}</span></h3>${st.levels?(()=>{
+      const L=st.levels; const zl=sizing(L.long.trigger,L.long.stop), zs=sizing(L.short.trigger,L.short.stop), zlt=sizing(st.price,L.lt.stop);
+      const sz=z=>z?`<div class="size"><div><span>Quantity</span><b>${fmtIN(z.qty)}</b></div><div><span>Notional</span><b>${fmtRs(z.notional)} <small style="color:var(--muted)">(${(z.pctPot*100).toFixed(0)}% of pot)</small></b></div><div><span>Risk / share</span><b>${px(z.per)}</b></div>${z.pctPot>0.25?`<div class="warn"><span>Concentration</span><b class="warn">${(z.pctPot*100).toFixed(0)}% of pot in one name</b></div>`:''}</div>`:'';
+      return `<div class="plan">
+      <div class="side long"><h4>Swing long <span class="cad" style="margin-left:6px">review 2 wks</span></h4><div><span>Trigger (20d high)</span><b>${px(L.long.trigger)}</b></div><div><span>Stop</span><b>${px(L.long.stop)}</b></div><div><span>Alt stop (20d low / 50E)</span><b>${px(L.long.alt_stop)}</b></div><div><span>T1</span><b>${px(L.long.t1)}</b></div><div><span>T2</span><b>${px(L.long.t2)}</b></div><div><span>R:R from here</span><b>${isNum(L.long.rr_at_mkt)?L.long.rr_at_mkt.toFixed(2):'–'}</b></div>${sz(zl)}</div>
+      <div class="side short"><h4>Swing short <span class="cad" style="margin-left:6px">review 2 wks</span></h4><div><span>Trigger (20d low)</span><b>${px(L.short.trigger)}</b></div><div><span>Stop</span><b>${px(L.short.stop)}</b></div><div><span>Alt stop (20d high / 50E)</span><b>${px(L.short.alt_stop)}</b></div><div><span>T1</span><b>${px(L.short.t1)}</b></div><div><span>T2</span><b>${px(L.short.t2)}</b></div>${sz(zs)}</div>
+      <div class="side lt"><h4>Long-term <span class="cad" style="margin-left:6px">review yearly</span></h4><div><span>Accumulate zone (50–200 EMA)</span><b>${px(L.lt.buy_zone_lo)} – ${px(L.lt.buy_zone_hi)}</b></div><div><span>Position stop</span><b>${px(L.lt.stop)}</b></div><div><span>Invalidation</span><b class="txt">${esc(L.lt.invalidation)}</b></div>${sz(zlt)}</div></div>
+      <div class="help" style="margin-top:8px">Sizing: ${fmtRs(S.size.pot)} pot · ${S.size.riskPct}% risk per trade · ${S.size.openRiskPct}% open-risk cap → at most ${Math.floor(S.size.openRiskPct/S.size.riskPct)} positions like this open at once. Change in the Sizing panel.</div>`})():'<div class="help">Not enough price history.</div>'}</div>
   </div>`;
   // ---- charts
   html+=`<div class="grid2">
@@ -560,8 +709,43 @@ $('#themebtn').onclick=()=>{theme=themes[(themes.indexOf(theme)+1)%3];LS.set('th
 applyTheme();
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.view==='stock')closeStock(); if(e.key==='/'&&S.view==='table'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();$('#q')?.focus()}});
 
+// ---------- watchlist ----------
+function renderWatch(){ computeRows(); const m=S.mode; const rows=ROWS.filter(r=>S.stars.has(r.st.symbol)).sort((a,b)=>(b.score||0)-(a.score||0));
+  const row=r=>{const s=r.st,L=s.levels||{},z=L.long?sizing(L.long.trigger,L.long.stop):null; const sc=composite(s,m);
+    return `<tr data-s="${s.symbol}"><td><div class="symcell"><span class="sym">${esc(s.symbol)}</span><span class="nm">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${px(s.price)}</td><td class="r num">${isNum(sc.score)?sc.score.toFixed(0):'–'}</td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td><td class="r num">${L.long?px(L.long.trigger):'–'}</td><td class="r num">${L.long?px(L.long.stop):'–'}</td><td class="r num">${L.long?px(L.long.t1):'–'}</td><td class="r num">${L.long?px(L.long.t2):'–'}</td><td class="r num">${z?fmtIN(z.qty):'–'}</td><td class="r num">${z?fmtRs(z.notional):'–'}</td><td class="r num ${cls(s.T.vs_ema200)}">${spct(s.T.vs_ema200)}</td><td class="r num">${isNum(s.T.atr_pct)?(s.T.atr_pct*100).toFixed(1)+'%':'–'}</td><td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td><button class="star on" data-un="${s.symbol}" title="Remove">★</button></td></tr>`};
+  $('#main').innerHTML=`<div class="tblhead"><h2>Watchlist <span class="cad">${rows.length} names</span></h2><span class="sub">levels and sizing at the current rulebook settings · score shown for ${esc(MODES[m].label)}</span></div>
+    <div class="tblwrap"><table><thead><tr><th>Stock</th><th>Sector</th><th class="r">Price</th><th class="r">Score</th><th>Gate</th><th class="r">Long trigger</th><th class="r">Stop</th><th class="r">T1</th><th class="r">T2</th><th class="r">Qty</th><th class="r">Notional</th><th class="r">vs 200E</th><th class="r">ATR%</th><th>Flags</th><th></th></tr></thead>
+    <tbody>${rows.length?rows.map(row).join(''):'<tr><td colspan="15" class="empty">No starred names yet. Open any stock and press ★.</td></tr>'}</tbody></table></div>
+    <div class="help" style="margin-top:10px">Notes and stars live in this browser only. Export the ranking CSV if you need them elsewhere.</div>`;
+  $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=e=>{if(e.target.dataset.un)return;openStock(t.dataset.s)});
+  $('#main').querySelectorAll('button[data-un]').forEach(b=>b.onclick=e=>{e.stopPropagation();S.stars.delete(b.dataset.un);LS.set('stars',[...S.stars]);render()});
+}
+// ---------- backtest ----------
+function renderBacktest(){ if(!BT||!BT.variants){$('#main').innerHTML=trackPanel(true)+'<div class="card"><h3>Backtest</h3><div class="help">No backtest results were embedded in this build. Run backtest.py and rebuild.</div></div>';return}
+  const P=v=>isNum(v)?(v>0?'+':'')+(v*100).toFixed(1)+'%':'–';
+  const rows=BT.variants.map(v=>`<tr><td>${esc(v.label)}</td><td>${v.cohorts}</td><td><b>${P(v.top_cagr)}</b></td><td>${P(v.univ_cagr)}</td><td>${P(v.bench_cagr)}</td><td class="${cls(v.top_dd)}">${P(v.top_dd)}</td><td>${(v.hit*100).toFixed(0)}%</td><td class="${cls(v.ex_univ)}">${P(v.ex_univ)} / ${(v.ex_univ_pos*100).toFixed(0)}%</td><td>${v.ic.toFixed(3)} / ${(v.ic_pos*100).toFixed(0)}%</td><td>${P(v.spread)} / ${(v.spread_pos*100).toFixed(0)}%</td></tr>`).join('');
+  const lt=(BT.lt_cohorts||[]).map(r=>`<tr><td>${r.cohort} → ${r.exit}</td><td>${r.n_elig}</td><td class="${cls(r.top)}"><b>${P(r.top)}</b></td><td>${P(r.bottom)}</td><td>${P(r.universe)}</td><td>${P(r.bench)}</td><td>${(r.hit*100).toFixed(0)}%</td><td>${r.ic.toFixed(2)}</td><td>${P(r.spread)}</td><td style="text-align:left;font-family:var(--sans);font-size:11px">${esc(r.picks.join(' '))}</td></tr>`).join('');
+  $('#main').innerHTML=trackPanel(true)+`<div class="card" style="margin-bottom:14px"><h3>Point-in-time backtest <span>${esc(BT.built||'')} · data to ${esc(BT.data_to||'')}</span></h3>
+    <div class="prose"><p>At every cohort date the whole universe was re-scored using only statements public by then (75-day lag after FY end, 50 after a quarter) and prices up to that day. Top-10 by score among names passing the gates, equal weight, held to the next cohort; 0.3% round-trip cost per swing rebalance. Benchmarks: Nifty 500, and the equal-weight average of <em>every name that passed the same gates</em> — if the top-10 does not beat that, the ranking adds nothing to the filter. Ownership pillar excluded (no history). <strong>Yahoo supplies four fiscal years of statements, so the full model can be tested from July 2023 only — three annual cohorts. A ten-year test of the fundamental side is not possible from this data.</strong></p></div>
+    <div class="finwrap bt"><table><thead><tr><th>Test</th><th>Cohorts</th><th>Top-10 CAGR</th><th>Gated universe</th><th>Nifty 500</th><th>Top-10 max DD</th><th>Pick hit rate</th><th>Top − universe · % periods</th><th>Rank IC · % positive</th><th>D10 − D1 · % positive</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="card" style="margin-bottom:14px"><h3>Long-term, year by year <span>bought 1 July, held a year</span></h3><div class="finwrap bt"><table><thead><tr><th>Cohort</th><th>Eligible</th><th>Top-10</th><th>Bottom-10</th><th>Universe</th><th>Nifty 500</th><th>Picks up</th><th>IC</th><th>D10−D1</th><th>The ten</th></tr></thead><tbody>${lt}</tbody></table></div></div>
+    <div class="card"><h3>What it means</h3><div class="prose">${(BT.findings||[]).map(f=>`<p>${esc(f)}</p>`).join('')}</div></div>`;
+}
+// ---------- method ----------
+function renderMethod(){ const fl=p=>Object.entries(D.factors).filter(([k,f])=>f.pillar===p).map(([k,f])=>`${(FL[k]||[k])[0]}${f.sector_rel?' (sector-rel.)':''}${f.higher?'':' ↓'}`).join(', ');
+  $('#main').innerHTML=`<div class="card"><h3>How the desk works</h3><div class="prose">
+    <p><strong>Universe.</strong> Every NSE-listed company with market cap ≥ ₹${fmtIN(D.mcap_floor_cr)} Cr — ${D.n} names — from Yahoo Finance statements and prices, refreshed every weekday evening. Statements are Yahoo's consolidated view and lag filings by days to weeks; each name's statements are re-pulled at least monthly.</p>
+    <p><strong>Scoring.</strong> Every factor is a percentile rank inside the universe (valuation factors half-weighted against the sector when the sector has ≥ 8 names). Factors average into eleven pillars; a pillar with under half its factors measured is blank and counts as neutral 50 in the composite. Banks, NBFCs, HFCs and insurers use a lender-specific factor set.</p>
+    <h3>Pillars</h3><ul>${PILLARS.map(p=>`<li><strong>${PLABEL[p]}</strong> — ${esc(PDESC[p])}<br><span style="color:var(--muted);font-size:12px">${esc(fl(p))}</span></li>`).join('')}</ul>
+    <h3>Modes</h3><ul>${Object.entries(MODES).map(([k,m])=>`<li><strong>${esc(m.label)}</strong> — review every ${esc(m.review)}. ${esc(m.hold_note)}<br><span style="color:var(--muted);font-size:12px">weights: ${PILLARS.filter(p=>m.w[p]>0).map(p=>`${PLABEL[p]} ${m.w[p]}`).join(' · ')}<br>gates: ${esc(gateText(k).replace(/^(Active|Off — ): ?/,''))}${m.gates.turnover_min?` · turnover ≥ ₹${m.gates.turnover_min} Cr/day`:''}${m.gates.atr_pct_min?` · ATR ≥ ${(m.gates.atr_pct_min*100).toFixed(1)}%`:''}${m.gates.max_ext!=null?` · ≤ ${Math.round(m.gates.max_ext*100)}% above 200 EMA`:''}</span></li>`).join('')}</ul>
+    <p>The swing modes rank on technicals only and use fundamentals purely as gates because the point-in-time backtest showed fundamentals help over a year and are noise over weeks; the two-week review cadence and the extension cap come from the same test (see the Backtest tab).</p>
+    <h3>Trade plan</h3><p>Swing long: trigger = 20-day high, stop = trigger − 2×ATR (alt: lower of 20-day low and 50 EMA), T1/T2 = +4/+6 ATR (1:2, 1:3). Short is the mirror on the 20-day low. Long-term: accumulate between the 50 and 200 EMA, stop at the lower of the 52-week low and 200 EMA − 8%. Sizing: risk = pot × risk %, quantity = risk ÷ (entry − stop).</p>
+    <h3>Red flags</h3><p>CFO/PAT 3y &lt; 0.5 (red) / &lt; 0.8; interest cover &lt; 1.5 / &lt; 3; net debt/EBITDA &gt; 4; other income &gt; 30% of PBT; receivable days +20; inventory days +25; FCF negative three years; margins &gt; 8 pp above the 3y average on flat sales; dilution &gt; 25% / &gt; 10%; promoter &lt; 25%; TTM loss; P/E &gt; 80; latest quarter PAT &lt; −25%; ATR &lt; 1.2%; turnover &lt; ₹2 Cr; 1-year drawdown &gt; 50%; plus grey data-quality notes.</p>
+    <h3>Data caveats</h3><p>Yahoo skips quarters, so TTM = latest FY + post-FY quarters − the same quarters a year earlier, or FY when a match is missing. Share counts are reconciled against PAT ÷ EPS (Yahoo's count is sometimes off by a clean multiple). No promoter pledge, no shareholding trend, no news, no F&amp;O flag. Nothing here is advice — it ranks where to spend research time.</p>
+  </div></div>`}
+
 // ---------- main ----------
-function renderMain(){ if(S.view==='stock')renderStock(); else renderTable() }
+function renderMain(){ if(S.view==='stock')renderStock(); else if(S.view==='watch')renderWatch(); else if(S.view==='backtest')renderBacktest(); else if(S.view==='method')renderMethod(); else renderTable() }
 function render(){ renderTop(); renderRail(); renderMain() }
 render();
 </script>
