@@ -419,6 +419,34 @@ def _fetch_prices(tickers, start, tag):
         if (i // B) % 3 == 2: log(f"prices[{tag}]: {min(i + B, len(tickers))}/{len(tickers)}")
     return frames
 
+def nse_bhav_patch(dates_needed, want_syms):
+    """Patch missing sessions from NSE's bhavcopy archive (static CDN) — the authoritative closes,
+    reachable in some places where Yahoo serves lagged bars. Returns tidy frames like _fetch_prices."""
+    import io as _io
+    ua = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+          "Referer": "https://www.nseindia.com/"}
+    frames = []
+    for d in dates_needed:
+        url = f"https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{d.strftime('%d%m%Y')}.csv"
+        try:
+            r = requests.get(url, headers=ua, timeout=30)
+            if r.status_code != 200 or len(r.content) < 1000:
+                log(f"prices: bhav patch {d}: HTTP {r.status_code}"); continue
+            b = pd.read_csv(_io.BytesIO(r.content), skipinitialspace=True)
+            b.columns = [c.strip().upper() for c in b.columns]
+            b = b[b["SERIES"].astype(str).str.strip().isin(["EQ", "BE"])]
+            b = b[b["SYMBOL"].str.strip().isin(want_syms)]
+            f = pd.DataFrame({"symbol": b["SYMBOL"].str.strip(), "date": d.strftime("%Y-%m-%d"),
+                              "open": pd.to_numeric(b["OPEN_PRICE"], errors="coerce"),
+                              "high": pd.to_numeric(b["HIGH_PRICE"], errors="coerce"),
+                              "low": pd.to_numeric(b["LOW_PRICE"], errors="coerce"),
+                              "close": pd.to_numeric(b["CLOSE_PRICE"], errors="coerce"),
+                              "volume": pd.to_numeric(b["TTL_TRD_QNTY"], errors="coerce")}).dropna(subset=["close"])
+            if len(f): frames.append(f); log(f"prices: NSE bhavcopy patch {d} — {len(f)} symbols")
+        except Exception as e:
+            log(f"prices: bhav patch {d} failed: {str(e)[:70]}")
+    return frames
+
 def expected_last_session():
     """The most recent NSE session that should have a bar by now (weekday, 16:00 IST cutoff). Ignores holidays."""
     now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
@@ -468,6 +496,12 @@ def stage_prices(keep):
         log(f"prices: last bar {last} (coverage {cov:.0%}) < expected session {exp} — waiting 90s and retrying the top-up once")
         time.sleep(90)
         frames += _fetch_prices(all_tickers, tail_start, "tail-retry")
+        allp = write()
+        last, cov = freshness(allp, exp)
+    if last < exp or cov < 0.6:
+        log(f"prices: still {cov:.0%} — patching the latest session from the NSE bhavcopy archive")
+        want = set(keep["symbol"].astype(str))
+        frames += nse_bhav_patch([exp], want)
         allp = write()
         last, cov = freshness(allp, exp)
     with open(os.path.join(OUT, "prices_through.txt"), "w") as f:
