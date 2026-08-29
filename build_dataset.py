@@ -29,7 +29,7 @@ seconds on re-run. Ctrl-C and re-run to resume.
 """
 import os, sys, json, time, gzip, io, math, random, argparse, traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import requests
@@ -50,6 +50,7 @@ ap.add_argument("--stage", default="all", choices=["all", "universe", "mcap", "f
 ap.add_argument("--refresh-prices", action="store_true", help="ignore the price cache and refetch (use with --years N)")
 ap.add_argument("--max-age-days", type=int, default=30, help="re-fetch a stock's fundamentals when its cached file is older than this (0 = never)")
 ap.add_argument("--price-file", default=None, help="write prices to this file instead of prices.csv.gz")
+ap.add_argument("--allow-stale", action="store_true", help="don't fail when the latest session's bar is missing (e.g. NSE holiday)")
 args = ap.parse_args()
 
 OUT = args.out
@@ -390,22 +391,9 @@ INDEXES = {"^NSEI": "NIFTY50", "^CRSLDX": "NIFTY500", "^NSEMDCP50": "NIFTYMIDCAP
            "^CNXFMCG": "NIFTYFMCG", "^CNXMETAL": "NIFTYMETAL", "^CNXENERGY": "NIFTYENERGY", "^CNXREALTY": "NIFTYREALTY",
            "^CNXINFRA": "NIFTYINFRA", "^CNXPSUBANK": "NIFTYPSUBANK", "^CNXFIN": "NIFTYFIN"}
 
-def stage_prices(keep):
-    start = (datetime.now() - timedelta(days=int(args.years * 365.25) + 10)).strftime("%Y-%m-%d")
-    have = set()
+def _fetch_prices(tickers, start, tag):
+    """Batched yf.download → list of tidy frames. Never raises; skips failed batches."""
     frames = []
-    if os.path.exists(PRICE_FILE) and not args.refresh_prices:
-        old = pd.read_csv(PRICE_FILE)
-        last = pd.to_datetime(old["date"]).max()
-        if (datetime.now() - last).days <= 3:
-            have = set(old["symbol"]); frames.append(old)
-            log(f"prices: cached through {last.date()} for {len(have)} symbols")
-        else:
-            log(f"prices: cache stale (last {last.date()}), refetching")
-    tickers = [ysym(s) for s in keep["symbol"] if s not in have] + [k for k, v in INDEXES.items() if v not in have]
-    if args.limit: tickers = tickers[:args.limit] + list(INDEXES)
-    tickers = list(dict.fromkeys(tickers))
-    log(f"prices: fetching {len(tickers)} tickers from {start}")
     B = 80
     for i in range(0, len(tickers), B):
         batch = tickers[i:i + B]
@@ -414,7 +402,7 @@ def stage_prices(keep):
         try:
             d = retry(go, tries=3)
         except Exception as e:
-            log(f"prices: batch {i} failed: {e}"); continue
+            log(f"prices[{tag}]: batch {i} failed: {e}"); continue
         for tk in batch:
             try:
                 sub = d[tk] if len(batch) > 1 else d
@@ -425,16 +413,72 @@ def stage_prices(keep):
             sub = sub.dropna(subset=["Close"])
             if sub.empty: continue
             sym = INDEXES.get(tk, tk.replace(".NS", ""))
-            f = pd.DataFrame({"symbol": sym, "date": sub.index.strftime("%Y-%m-%d"),
-                              "open": sub["Open"].values, "high": sub["High"].values, "low": sub["Low"].values,
-                              "close": sub["Close"].values, "volume": sub["Volume"].values})
-            frames.append(f)
-        log(f"prices: {min(i + B, len(tickers))}/{len(tickers)}")
-        pd.concat(frames).to_csv(PRICE_FILE, index=False, compression="gzip")
-    if frames:
-        allp = pd.concat(frames).drop_duplicates(["symbol", "date"])
+            frames.append(pd.DataFrame({"symbol": sym, "date": sub.index.strftime("%Y-%m-%d"),
+                                        "open": sub["Open"].values, "high": sub["High"].values, "low": sub["Low"].values,
+                                        "close": sub["Close"].values, "volume": sub["Volume"].values}))
+        if (i // B) % 3 == 2: log(f"prices[{tag}]: {min(i + B, len(tickers))}/{len(tickers)}")
+    return frames
+
+def expected_last_session():
+    """The most recent NSE session that should have a bar by now (weekday, 16:00 IST cutoff). Ignores holidays."""
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    d = now_ist.date()
+    if now_ist.hour < 16: d -= timedelta(days=1)
+    while d.weekday() >= 5: d -= timedelta(days=1)
+    return d
+
+def stage_prices(keep):
+    start = (datetime.now() - timedelta(days=int(args.years * 365.25) + 10)).strftime("%Y-%m-%d")
+    have = set()
+    frames = []
+    if os.path.exists(PRICE_FILE) and not args.refresh_prices:
+        old = pd.read_csv(PRICE_FILE)
+        last = pd.to_datetime(old["date"]).max()
+        if (datetime.now() - last).days <= 14:
+            have = set(old["symbol"]); frames.append(old)
+            log(f"prices: history cached through {last.date()} for {len(have)} symbols")
+        else:
+            log(f"prices: cache too old (last {last.date()}), full refetch")
+    all_tickers = list(dict.fromkeys([ysym(s) for s in keep["symbol"]] + list(INDEXES)))
+    if args.limit: all_tickers = list(dict.fromkeys([ysym(s) for s in keep["symbol"]][:args.limit] + list(INDEXES)))
+    # 1) full history only for symbols we don't have yet
+    new_tickers = [t for t in all_tickers if INDEXES.get(t, t.replace(".NS", "")) not in have]
+    if new_tickers:
+        log(f"prices: full history for {len(new_tickers)} new tickers from {start}")
+        frames += _fetch_prices(new_tickers, start, "full")
+    # 2) ALWAYS top up the last days for every symbol — this is what makes each run carry the latest close
+    tail_start = (datetime.now() - timedelta(days=9)).strftime("%Y-%m-%d")
+    log(f"prices: topping up all {len(all_tickers)} tickers from {tail_start}")
+    frames += _fetch_prices(all_tickers, tail_start, "tail")
+
+    def write():
+        allp = pd.concat(frames).drop_duplicates(["symbol", "date"], keep="last")
         allp.to_csv(PRICE_FILE, index=False, compression="gzip")
-        log(f"prices: {len(allp)} rows, {allp['symbol'].nunique()} symbols → {PRICE_FILE}")
+        return allp
+    allp = write() if frames else None
+    if allp is None:
+        sys.exit("prices: nothing fetched at all — Yahoo unreachable")
+    def freshness(allp, exp):
+        per = pd.to_datetime(allp.groupby("symbol")["date"].max())
+        return per.max().date(), float((per >= pd.Timestamp(exp)).mean())
+    # freshness gate: never let the pipeline silently ship yesterday's prices
+    exp = expected_last_session()
+    last, cov = freshness(allp, exp)
+    if last < exp or cov < 0.6:
+        log(f"prices: last bar {last} (coverage {cov:.0%}) < expected session {exp} — waiting 90s and retrying the top-up once")
+        time.sleep(90)
+        frames += _fetch_prices(all_tickers, tail_start, "tail-retry")
+        allp = write()
+        last, cov = freshness(allp, exp)
+    with open(os.path.join(OUT, "prices_through.txt"), "w") as f:
+        f.write(str(last))
+    log(f"prices: {len(allp)} rows, {allp['symbol'].nunique()} symbols, through {last} (coverage {cov:.0%}) → {PRICE_FILE}")
+    if last < exp or cov < 0.6:
+        msg = f"prices: STALE — last bar {last}, {cov:.0%} of symbols have the {exp} bar. NSE holiday, or Yahoo hasn't published yet."
+        if os.environ.get("GITHUB_ACTIONS") and not args.allow_stale:
+            sys.exit(msg + " Failing the run so the site never silently serves old prices. "
+                           "(If today was a market holiday, this failure is expected — ignore it.)")
+        log(msg)
 
 # ----------------------------------------------------------------------------
 # 5. PACK
