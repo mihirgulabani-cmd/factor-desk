@@ -402,6 +402,8 @@ function gateFails(st,mode){ const g=S.gates[mode],T=st.T,F=st.F,out=[]; if(!S.u
   if(g.pe_min&&isNum(F.pe)&&F.pe<g.pe_min)out.push('P/E < '+g.pe_min);
   if(g.other_inc_max&&isNum(F.other_inc_pbt)&&F.other_inc_pbt>g.other_inc_max)out.push('other income');
   if(g.dilution_max!=null){const dil=isNum(F.dilution_3y)?F.dilution_3y:F.dilution_hist; if(isNum(dil)&&dil>g.dilution_max)out.push('dilution')}
+  if(g.growth_min!=null&&!(isNum(st.pillars.growth)&&st.pillars.growth>=g.growth_min))out.push('growth unconfirmed');
+  if(g.quality_min!=null&&!(isNum(st.pillars.quality)&&st.pillars.quality>=g.quality_min))out.push('quality unconfirmed');
   if(g.cfo_pat_min!=null&&!st.lender&&isNum(F.cfo_pat_3y)&&F.cfo_pat_3y<g.cfo_pat_min)out.push('cash conversion');
   if(g.no_red&&st.n_red>0)out.push('red flag');
   return out }
@@ -503,7 +505,7 @@ function renderRail(){
   $('#resetW').onclick=()=>{S.weights[m]={...MODES[m].w};LS.set('weights',S.weights);render()};
   $('#rail').querySelectorAll('input[type=range]').forEach(r=>{r.oninput=()=>{S.weights[m][r.dataset.p]=+r.value;r.parentElement.querySelector('.num').textContent=r.value};r.onchange=()=>{LS.set('weights',S.weights);render()}});
 }
-function gateText(m){const g=S.gates[m];const t=[];if(g.pat_positive)t.push('TTM profit > 0');if(g.above_ema200)t.push('above 200 EMA');if(g.below_ema200)t.push('below 200 EMA');if(g.min_bars)t.push(`≥ ${g.min_bars} bars`);if(g.pe_min)t.push(`P/E ≥ ${g.pe_min}`);if(g.other_inc_max)t.push(`other income ≤ ${Math.round(g.other_inc_max*100)}% of PBT`);if(g.dilution_max!=null)t.push(`dilution ≤ ${Math.round(g.dilution_max*100)}%`);if(g.cfo_pat_min!=null)t.push(`CFO/PAT 3y ≥ ${g.cfo_pat_min}`);return (S.useGates?'Active: ':'Off — ')+t.join(' · ')}
+function gateText(m){const g=S.gates[m];const t=[];if(g.pat_positive)t.push('TTM profit > 0');if(g.above_ema200)t.push('above 200 EMA');if(g.below_ema200)t.push('below 200 EMA');if(g.min_bars)t.push(`≥ ${g.min_bars} bars`);if(g.pe_min)t.push(`P/E ≥ ${g.pe_min}`);if(g.other_inc_max)t.push(`other income ≤ ${Math.round(g.other_inc_max*100)}% of PBT`);if(g.dilution_max!=null)t.push(`dilution ≤ ${Math.round(g.dilution_max*100)}%`);if(g.cfo_pat_min!=null)t.push(`CFO/PAT 3y ≥ ${g.cfo_pat_min}`);if(g.growth_min!=null)t.push(`growth pillar ≥ ${g.growth_min}`);if(g.quality_min!=null)t.push(`quality pillar ≥ ${g.quality_min}`);return (S.useGates?'Active: ':'Off — ')+t.join(' · ')}
 
 // ---------- regime + movers ----------
 function regimePanel(){ const R=D.regime||{}; const B=R.breadth||{}; if(!isNum(R.eff_ratio_60))return '';
@@ -659,10 +661,39 @@ function renderStock(){
   $('#main').querySelectorAll('.pl').forEach(p=>p.onclick=()=>$('#fx-'+p.dataset.p).classList.toggle('open'));
   drawDaily(st); drawWeekly(st);
 }
+const FINHELP={
+ 'Revenue':'What the company sold. The top of everything — growth here is the rawest signal of a business getting bigger. Watch the TREND across columns, not one number.',
+ 'growth':'Year-over-year change. One great year means little; 3+ rising columns is a story. Quarterly YoY compares to the same quarter last year (seasonality-proof).',
+ 'EBIT':'Operating profit: what the BUSINESS earns before interest and tax. If revenue grows but EBIT does not, growth is being bought, not earned.',
+ 'OPM':'Operating margin = EBIT/revenue. RISING margin with rising revenue is the strongest combination in investing — pricing power plus scale.',
+ 'EBITDA':'EBIT before depreciation. Useful for comparing capital-heavy businesses; easier to flatter than EBIT — trust EBIT more.',
+ 'Interest':'Cost of debt. If this grows faster than EBIT, the lenders are eating the shareholders\' lunch.',
+ 'Other income':'Earnings NOT from the business: interest on cash, one-off gains. Fine when small; a red flag when it is a big share of profit (the desk gates on this).',
+ 'PAT':'Profit after tax — the bottom line. But check WHERE it came from: PAT growing while revenue is flat usually means margins or other income, not business growth.',
+ 'Net margin':'PAT/revenue. Compare within a sector only — 5% is terrible for IT and excellent for retail.',
+ 'EPS ₹':'Profit per share. The one that matters for the price. If PAT grows 20% but EPS grows 5%, dilution stole the difference — check share count.',
+ 'CFO':'Cash from operations — profit you can TOUCH. The single best lie detector in accounting.',
+ 'CFO / PAT':'Cash conversion. Near 1 = profits are real cash. Persistently below 0.5 = paper profits stuck in receivables or worse. The desk gates swing entries on this.',
+ 'Capex':'Money reinvested into the business. High capex + high ROCE = compounding machine. High capex + low ROCE = a hole that eats cash.',
+ 'Free cash flow':'CFO minus capex — cash left for dividends, buybacks, debt paydown. Businesses that compound for decades are FCF machines.',
+ 'Dividends paid':'Cash actually returned. A dividend that grows steadily is management telling you the cash is real.',
+ 'Net interest income':'For lenders: interest earned minus interest paid — their version of revenue.',
+ 'Provisions':'For lenders: money set aside for loans going bad. Spiking provisions = trouble arriving before it is announced.',
+ 'Equity':'Shareholders\' capital in the business. The base for ROE.',
+ 'Debt':'Borrowings. Compare to equity (D/E) and to EBITDA (years to repay). Rising debt + falling margins is the classic death spiral.',
+ 'Cash':'Buffer and optionality. Net cash (cash > debt) means the balance sheet cannot kill the company.',
+ 'Receivables':'Sales billed but not collected. Growing much faster than revenue = customers not paying, or sales that are not quite real.',
+ 'Inventory':'Stock waiting to be sold. Ballooning inventory ahead of falling sales = write-offs coming.',
+ 'Shares (Cr)':'Diluted share count. UP over time = your slice shrinking (bad unless funding real growth). DOWN = buybacks working for you.',
+ 'Gross block':'Total cost of fixed assets. Capacity expansion shows up here before revenue does.',
+ 'D/E':'Debt to equity. Below 0.5 comfortable for most businesses; above 1.5 means the balance sheet runs the show. Lenders live by different rules.',
+ 'ROE':'Return on equity — what the business earns on shareholders\' money. Above 15% sustained is quality; check it is not manufactured by debt.',
+ 'Operating profit':'For quarters: profit from operations before interest and tax. The quarterly pulse of the business.',
+ 'YoY':'Versus the same quarter last year — the seasonality-proof comparison. Two or more accelerating quarters is what re-rates a stock.'};
 function finTable(fin,which,st){
   const dates=which==='a'?fin.a_dates:fin.q_dates; const d=fin[which]; if(!dates.length)return '<div class="help">No statements available from the data source.</div>';
   const cr=v=>isNum(v)?fmtIN(v/1e7,Math.abs(v)/1e7<100?1:0):'–';
-  const row=(label,arr,f=cr,cl='')=>`<tr class="${cl}"><td>${label}</td>${arr.map(v=>`<td>${f(v)}</td>`).join('')}</tr>`;
+  const row=(label,arr,f=cr,cl='')=>`<tr class="${cl}"><td ${FINHELP[label]?`title="${esc(FINHELP[label])}" style="cursor:help;text-decoration:underline dotted 1px;text-underline-offset:3px"`:''}>${label}</td>${arr.map(v=>`<td>${f(v)}</td>`).join('')}</tr>`;
   const ratio=(a,b)=>a.map((v,i)=>isNum(v)&&isNum(b[i])&&b[i]!==0?v/b[i]:null);
   const yb=dt=>String(+dt.slice(0,4)-1)+dt.slice(4);
   const yoy=arr=>arr.map((v,i)=>{let j; if(which==='a'){j=i+1}else{j=dates.indexOf(yb(dates[i]))} const p=j>=0?arr[j]:null;return isNum(v)&&isNum(p)&&p>0?v/p-1:null});
@@ -808,6 +839,15 @@ function renderMethod(){ const fl=p=>Object.entries(D.factors).filter(([k,f])=>f
     <h3>Pillars</h3><ul>${PILLARS.map(p=>`<li><strong>${PLABEL[p]}</strong> — ${esc(PDESC[p])}<br><span style="color:var(--muted);font-size:12px">${esc(fl(p))}</span></li>`).join('')}</ul>
     <h3>Modes</h3><ul>${Object.entries(MODES).map(([k,m])=>`<li><strong>${esc(m.label)}</strong> — review every ${esc(m.review)}. ${esc(m.hold_note)}<br><span style="color:var(--muted);font-size:12px">weights: ${PILLARS.filter(p=>m.w[p]>0).map(p=>`${PLABEL[p]} ${m.w[p]}`).join(' · ')}<br>gates: ${esc(gateText(k).replace(/^(Active|Off — ): ?/,''))}${m.gates.turnover_min?` · turnover ≥ ₹${m.gates.turnover_min} Cr/day`:''}${m.gates.atr_pct_min?` · ATR ≥ ${(m.gates.atr_pct_min*100).toFixed(1)}%`:''}${m.gates.max_ext!=null?` · ≤ ${Math.round(m.gates.max_ext*100)}% above 200 EMA`:''}</span></li>`).join('')}</ul>
     <p>The swing modes rank on technicals only and use fundamentals purely as gates because the point-in-time backtest showed fundamentals help over a year and are noise over weeks; the two-week review cadence and the extension cap come from the same test (see the Backtest tab).</p>
+    <h3>Reading the financials — the 5-minute method</h3>
+    <p>Every number on a stock page has a hover explanation (dotted underline). This is the order to read them in — it catches 90% of what matters:</p>
+    <p><strong>1. Is the business growing? (Revenue rows)</strong> Look across the annual columns, then the quarterly YoY. You want a trend, not a year. Quarterly YoY <em>accelerating</em> (each quarter better than the last) is what re-rates stocks — it is also the single fundamental that helped swing trades in our tests.</p>
+    <p><strong>2. Is growth turning into profit? (EBIT and OPM)</strong> Revenue up + margin up = pricing power, the best combination there is. Revenue up + margin down = buying growth with discounts; the market pays less for it. For a swing entry after results, this pair explains most gap-and-runs.</p>
+    <p><strong>3. Is the profit real? (CFO / PAT)</strong> The lie detector. Near 1: real. Persistently under 0.5: profits on paper, cash stuck in receivables — the desk refuses swing entries here, and for long-term names it is the difference between compounding and an accounting story. Pair with the Receivables row: billing growing faster than collecting is the oldest trick in the book.</p>
+    <p><strong>4. Who pays for growth? (Debt, D/E, Shares)</strong> Growth funded by cash flow is yours; funded by debt is the lender's; funded by new shares is someone else's. EPS growing slower than PAT = dilution eating your slice. Interest growing faster than EBIT = the death-spiral setup.</p>
+    <p><strong>5. What does a rupee earn here? (ROE / ROCE)</strong> Above 15% sustained means the business compounds internally. This is a LONG-TERM question — it tells you almost nothing about the next month, which is why the swing mode barely weighs it.</p>
+    <p><strong>The two lenses.</strong> <em>Swing:</em> you only need to know the fundamentals won't blow up mid-trade — profit positive, cash conversion sane, no red flags, and ideally the growth/quality confirm lit. Spend your attention on the chart, the levels, and the exchange tape instead. <em>Long-term:</em> reverse it — steps 1–5 above ARE the decision, the chart only times the entry. If you cannot say in one sentence why ROCE stays high, you are renting the stock, not owning it.</p>
+    <p><strong>Traps the desk flags automatically:</strong> other income propping up PBT · P/E under 3 (usually a one-off gain, not cheapness) · computed vs Yahoo P/E disagreeing (data basis mismatch) · filed standalone vs Yahoo consolidated differing wildly · receivable days stretching. A flag is not a verdict — it is where to look first.</p>
     <h3>Trade plan</h3><p>Swing long: trigger = 20-day high, stop = trigger − 2×ATR (alt: lower of 20-day low and 50 EMA), T1/T2 = +4/+6 ATR (1:2, 1:3). Short is the mirror on the 20-day low. Long-term: accumulate between the 50 and 200 EMA, stop at the lower of the 52-week low and 200 EMA − 8%. Sizing: risk = pot × risk %, quantity = risk ÷ (entry − stop).</p>
     <h3>Red flags</h3><p>CFO/PAT 3y &lt; 0.5 (red) / &lt; 0.8; interest cover &lt; 1.5 / &lt; 3; net debt/EBITDA &gt; 4; other income &gt; 30% of PBT; receivable days +20; inventory days +25; FCF negative three years; margins &gt; 8 pp above the 3y average on flat sales; dilution &gt; 25% / &gt; 10%; promoter &lt; 25%; TTM loss; P/E &gt; 80; latest quarter PAT &lt; −25%; ATR &lt; 1.2%; turnover &lt; ₹2 Cr; 1-year drawdown &gt; 50%; plus grey data-quality notes.</p>
     <h3>Data caveats</h3><p>Yahoo skips quarters, so TTM = latest FY + post-FY quarters − the same quarters a year earlier, or FY when a match is missing. Share counts are reconciled against PAT ÷ EPS (Yahoo's count is sometimes off by a clean multiple). No promoter pledge, no shareholding trend, no news, no F&amp;O flag. Nothing here is advice — it ranks where to spend research time.</p>

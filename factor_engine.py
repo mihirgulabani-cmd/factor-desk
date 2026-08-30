@@ -445,7 +445,8 @@ MODES = {
                    "gates": {"turnover_min": 2, "pat_positive": True, "min_bars": 200, "pe_min": 3, "other_inc_max": 0.30, "dilution_max": 0.25}},
     "swing_long": {"label": "Swing — long", "dir": "long", "review": "2 weeks", "hold_note": "ride while it works; re-rank every two weeks, not monthly",
                    "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
-                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200, "max_ext": 0.30, "pat_positive": True, "dilution_max": 0.10, "cfo_pat_min": 0.5}},
+                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200, "max_ext": 0.30, "pat_positive": True, "dilution_max": 0.10, "cfo_pat_min": 0.5,
+                             "growth_min": 40, "quality_min": 40}},  # fundamental confirm: 3y sweep (Aug-2026) — best excess & win rate at every hold ≥ 3W, halves drawdown
     "swing_short": {"label": "Swing — short", "dir": "short", "review": "2 weeks", "hold_note": "no standalone edge in the backtest — use only with a bearish market regime",
                     "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
                     "gates": {"turnover_min": 25, "below_ema200": True, "atr_pct_min": 0.015, "min_bars": 200}},
@@ -566,7 +567,11 @@ def score_universe(univ, funds, groups, asof=None, mcap_floor_cr=1000, bench_nam
         for i, r_ in enumerate(rows):
             prow = {pl: (None if pd.isna(ps_.at[i, pl]) else float(ps_.at[i, pl])) for pl in PILLARS}
             c, cov = composite_row(prow, m, (weights or {}).get(m))
-            sc.append(c); cv.append(cov); gt.append(gate_fails(r_["F"], r_["T"], m))
+            fails = gate_fails(r_["F"], r_["T"], m)
+            g = MODES[m]["gates"]
+            for gk, pl, lbl in (("growth_min", "growth", "growth unconfirmed"), ("quality_min", "quality", "quality unconfirmed")):
+                if g.get(gk) is not None and not (prow.get(pl) is not None and prow[pl] >= g[gk]): fails.append(lbl)
+            sc.append(c); cv.append(cov); gt.append(fails)
         out["score_" + m] = sc; out["cov_" + m] = cv; out["gates_" + m] = gt
     # a few raw fields the backtest reports on
     out["turnover_20"] = [r_["T"].get("turnover_20") for r_ in rows]

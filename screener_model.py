@@ -549,7 +549,8 @@ MODES = {
                    "gates": {"turnover_min": 2, "pat_positive": True, "min_bars": 200, "pe_min": 3, "other_inc_max": 0.30, "dilution_max": 0.25}},
     "swing_long": {"label": "Swing — long", "dir": "long", "review": "2 weeks", "hold_note": "ride while it works; re-rank every two weeks, not monthly",
                    "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
-                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200, "max_ext": 0.30, "pat_positive": True, "dilution_max": 0.10, "cfo_pat_min": 0.5}},
+                   "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200, "max_ext": 0.30, "pat_positive": True, "dilution_max": 0.10, "cfo_pat_min": 0.5,
+                             "growth_min": 40, "quality_min": 40}},  # fundamental confirm: 3y sweep (Aug-2026) — best excess & win rate at every hold ≥ 3W, halves drawdown
     "swing_short": {"label": "Swing — short", "dir": "short", "review": "2 weeks", "hold_note": "no standalone edge in the backtest — use only with a bearish market regime",
                     "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
                     "gates": {"turnover_min": 25, "below_ema200": True, "atr_pct_min": 0.015, "min_bars": 200}},
@@ -651,7 +652,12 @@ for i, r_ in enumerate(rows):
     comps = {}
     for m in MODES:
         c, cov = composite(i, m)
-        comps[m] = {"score": r(c, 1), "cov": r(cov, 2), "gates": gate_fails(F, T, m)}
+        fails = gate_fails(F, T, m)
+        for gk, pl, lbl in (("growth_min", "growth", "growth unconfirmed"), ("quality_min", "quality", "quality unconfirmed")):
+            gv = MODES[m]["gates"].get(gk)
+            pv = pillar_scores.at[i, pl]
+            if gv is not None and not (isinstance(pv, (int, float)) and not math.isnan(pv) and pv >= gv): fails.append(lbl)
+        comps[m] = {"score": r(c, 1), "cov": r(cov, 2), "gates": fails}
     r_["rec"]["F_lender"] = F["lender"]
     stocks.append({
         "symbol": r_["symbol"], "name": r_["name"], "sector": F["sector"], "industry": F["industry"], "lender": F["lender"],
