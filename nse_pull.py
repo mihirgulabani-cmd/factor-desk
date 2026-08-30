@@ -7,7 +7,7 @@ Run on the Mac (NSE blocks datacenter IPs; a home connection works):
     python3 ~/Downloads/factor-desk/nse_pull.py --backfill-days 730      # first run: ~2y of daily files
     python3 ~/Downloads/factor-desk/nse_pull.py                          # daily incremental (~1-2 min)
 
-What it collects, into ~/Downloads/screener_data/nse/:
+What it collects, into ~/screener_data/nse/:
 
   bhav/sec_YYYY-MM-DD.csv      full bhavcopy incl. DELIV_PER (delivery %)        [daily, backfillable]
   fo/fo_YYYY-MM-DD.csv         F&O bhavcopy → per-stock futures OI + change      [daily, backfillable]
@@ -31,10 +31,10 @@ except ImportError:
     sys.exit("pip3 install pandas requests")
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--out", default=os.path.expanduser("~/Downloads/screener_data/nse"))
+ap.add_argument("--out", default=os.path.expanduser("~/screener_data/nse"))
 ap.add_argument("--backfill-days", type=int, default=10, help="how far back to fill daily files (bhav/fo)")
 ap.add_argument("--shareholding", type=int, default=25, help="how many symbols' shareholding to refresh per run (slow-cycled)")
-ap.add_argument("--universe", default=os.path.expanduser("~/Downloads/screener_data/universe_kept.csv"))
+ap.add_argument("--universe", default=os.path.expanduser("~/screener_data/universe_kept.csv"))
 args = ap.parse_args()
 OUT = args.out
 for d in ("bhav", "fo", "shareholding"):
@@ -163,8 +163,13 @@ def pull_announcements():
 
 def pull_insider():
     try:
-        j = nse.get_json("https://www.nseindia.com/api/corporates-pit?index=equities")
-        rows = j.get("data", []) if isinstance(j, dict) else j
+        to = date.today(); frm = to - timedelta(days=90)
+        url = (f"https://www.nseindia.com/api/corporates-pit?index=equities"
+               f"&from_date={frm.strftime('%d-%m-%Y')}&to_date={to.strftime('%d-%m-%Y')}")
+        j = nse.get_json(url)
+        rows = j.get("data", []) if isinstance(j, dict) else (j or [])
+        if not rows and isinstance(j, dict):
+            log("insider: empty — response keys:", ",".join(list(j.keys())[:10]))
         n = jsonl_append("insider.jsonl", rows, lambda r: (r.get("symbol"), r.get("date") or r.get("intimDt"), r.get("acqName"), r.get("secAcq")))
         log(f"insider: +{n}")
     except Exception as e:

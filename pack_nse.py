@@ -3,14 +3,14 @@
 
     python3 ~/Documents/GitHub/factor-desk/pack_nse.py
 
-Writes into ~/Downloads/screener_data/nse/:
+Writes into ~/screener_data/nse/:
   delivery_panel.csv.gz   date, symbol, close, qty, deliv_qty, deliv_per   (EQ series only)
   fo_panel.csv.gz         date, symbol, oi, oi_chg, vol, close
 Then drag those two (plus announcements.jsonl, insider.jsonl, bulk_block.jsonl, events.jsonl) into the chat.
 """
 import os, glob, gzip
 import pandas as pd
-NSE = os.path.expanduser("~/Downloads/screener_data/nse")
+NSE = os.path.expanduser("~/screener_data/nse")
 
 # ---- delivery panel from bhavcopies
 rows = []

@@ -7,7 +7,7 @@ Run on your Mac (the cloud sandbox can't reach Yahoo/NSE):
     pip3 install --upgrade yfinance pandas requests
     python3 ~/Downloads/build_dataset.py
 
-Resumable and idempotent: every stage caches to ~/Downloads/screener_data/.
+Resumable and idempotent: every stage caches to ~/screener_data/.
 Re-run any time; only missing pieces are fetched. To force a full refresh
 of one stage, delete its cache file/dir and re-run.
 
@@ -41,7 +41,7 @@ except ImportError:
 
 # ----------------------------------------------------------------------------
 ap = argparse.ArgumentParser()
-ap.add_argument("--out", default=os.path.expanduser("~/Downloads/screener_data"))
+ap.add_argument("--out", default=os.path.expanduser("~/screener_data"))
 ap.add_argument("--mcap-floor-cr", type=float, default=1000.0)
 ap.add_argument("--threads", type=int, default=6)
 ap.add_argument("--years", type=int, default=4, help="years of daily prices")

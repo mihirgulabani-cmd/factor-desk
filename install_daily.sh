@@ -2,12 +2,12 @@
 # Installs a launchd job that runs refresh.sh every weekday at 18:30 (your Mac's local time).
 #   bash ~/Downloads/factor-desk/install_daily.sh          # install / update
 #   bash ~/Downloads/factor-desk/install_daily.sh --remove # uninstall
-# Logs: ~/Downloads/screener_data/refresh.log
+# Logs: ~/screener_data/refresh.log
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LABEL="com.mihir.factordesk"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-LOG="$HOME/Downloads/screener_data/refresh.log"
+LOG="$HOME/screener_data/refresh.log"
 PY="$(command -v python3)"
 HOUR="${HOUR:-18}"; MIN="${MIN:-30}"
 
@@ -16,7 +16,7 @@ if [ "$1" == "--remove" ]; then
   rm -f "$PLIST"; echo "removed $LABEL"; exit 0
 fi
 
-mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Downloads/screener_data"
+mkdir -p "$HOME/Library/LaunchAgents" "$HOME/screener_data"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

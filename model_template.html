@@ -139,6 +139,14 @@ td.r{text-align:right}
 .flagdots{display:inline-flex;gap:3px}
 .flagdots i{width:8px;height:8px;border-radius:50%;display:inline-block}
 .flagdots i.red{background:var(--down)} .flagdots i.amber{background:var(--warn)} .flagdots i.grey{background:var(--line-2)}
+.mqb{display:inline-block;font-size:9.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;padding:1px 6px;border-radius:9px;vertical-align:1px;white-space:nowrap}
+.mqb.backed{background:color-mix(in srgb,var(--up) 16%,transparent);color:var(--up)}
+.mqb.accumulating{background:color-mix(in srgb,var(--acc,#4a7dff) 16%,transparent);color:var(--acc,#4a7dff)}
+.mqb.hollow{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.mqb.covering{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down)}
+.verdict{font-weight:700;font-size:11px;letter-spacing:.5px;padding:2px 8px;border-radius:10px}
+.verdict.hold{background:color-mix(in srgb,var(--up) 14%,transparent);color:var(--up)}
+.verdict.rotate{background:color-mix(in srgb,var(--down) 14%,transparent);color:var(--down)}
 .sectag{font-size:11px;color:var(--ink-2);background:var(--surface-2);padding:2px 7px;border-radius:5px;white-space:nowrap}
 .star{border:0;background:none;color:var(--line-2);font-size:15px;padding:0 4px;line-height:1}
 .star.on{color:var(--warn)}
@@ -358,7 +366,7 @@ const S = {
   size:Object.assign({pot:4000000,riskPct:1,openRiskPct:5},LS.get('size',{})),
   f:{q:'',sectors:new Set(),cap:'all',turnover:0,noRed:false,lenders:true,minScore:0,minCov:0.6,stars:false},
   sort:{key:'score',dir:-1},
-  stars:new Set(LS.get('stars',[])), notes:LS.get('notes',{}),
+  stars:new Set(LS.get('stars',[])), notes:LS.get('notes',{}), book:new Set(LS.get('book',[])), bookTarget:LS.get('bookTarget',15),
 };
 const savedW = LS.get('weights',null); if(savedW){for(const m in savedW){if(S.weights[m])S.weights[m]={...S.weights[m],...savedW[m]}}}
 // weights saved before the Aug-2026 backtest revision are reset once so the new swing defaults apply
@@ -402,6 +410,12 @@ function sizing(entry,stop){ const z=S.size; const riskRs=z.pot*z.riskPct/100; c
   const qty=Math.floor(riskRs/per); const notional=qty*entry; const capRs=z.pot*z.openRiskPct/100;
   return {riskRs,per,qty,notional,pctPot:notional/z.pot,slots:Math.floor(capRs/riskRs),capRs} }
 function fmtRs(v){ if(!isNum(v))return '–'; if(Math.abs(v)>=1e7)return '₹'+(v/1e7).toFixed(2)+' Cr'; if(Math.abs(v)>=1e5)return '₹'+(v/1e5).toFixed(2)+' L'; return '₹'+fmtIN(v,0) }
+const MQL={backed:'Backed',accumulating:'Accumulating',hollow:'Hollow',covering:'Covering'};
+function mqTitle(mq){ const t=[]; if(isNum(mq.ret5))t.push('5d '+spct(mq.ret5)); if(isNum(mq.dp))t.push('delivery '+mq.dp.toFixed(0)+'%'+(isNum(mq.dp_med)?' vs '+mq.dp_med.toFixed(0)+'% norm':'')); if(isNum(mq.oi5))t.push('OI 5d '+spct(mq.oi5)); if(isNum(mq.vr5))t.push('vol '+mq.vr5.toFixed(1)+'x');
+  const why={backed:'move confirmed by real delivery / fresh OI',accumulating:'delivery spike + OI build, price quiet — someone is buying',hollow:'rally without delivery — churn, do not chase',covering:'rally on falling OI — short covering, exit not entry'};
+  return (why[mq.st]||'')+' · '+t.join(' · ') }
+function mqBadge(st){ const mq=st.mq; if(!mq||!mq.st)return ''; return `<span class="mqb ${mq.st}" title="${esc(mqTitle(mq))}">${MQL[mq.st]}</span>` }
+function eligibleRows(){ computeRows(); return ROWS.filter(r=>isNum(r.score)&&!r.fails.length&&r.cov>=S.f.minCov).sort((a,b)=>b.score-a.score) }
 let ROWS=[];
 function computeRows(){ const m=S.mode; ROWS=D.stocks.map(st=>{const c=composite(st,m);return {st,score:c.score,cov:c.cov,fails:gateFails(st,m)}}) }
 function filtered(){ const f=S.f,[lo,hi]=CAPBANDS[f.cap]; const q=f.q.trim().toUpperCase();
@@ -422,8 +436,8 @@ function renderTop(){
   $('#asof').textContent = `prices to ${D.asof} · ${D.n} stocks ≥ ₹${fmtIN(D.mcap_floor_cr)} Cr`;
   $('#modes').innerHTML = Object.keys(MODES).map(m=>`<button data-m="${m}" class="${S.mode===m?'on '+(MODES[m].dir==='short'?'short':m==='swing_long'?'long':''):''}">${esc(MODES[m].label)}</button>`).join('');
   $('#modes').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;S.sort={key:'score',dir:-1};if(S.view==='stock')S.view='table';render()});
-  const VIEWS=[['table','Ranking'],['watch','Watchlist'],['backtest','Backtest'],['method','Method']];
-  $('#views').innerHTML=VIEWS.map(([k,l])=>`<button data-v="${k}" class="${(S.view===k||(k==='table'&&S.view==='stock'))?'on':''}">${l}${k==='watch'&&S.stars.size?` <small>${S.stars.size}</small>`:''}</button>`).join('');
+  const VIEWS=[['table','Ranking'],['book','Book'],['watch','Watchlist'],['backtest','Backtest'],['method','Method']];
+  $('#views').innerHTML=VIEWS.map(([k,l])=>`<button data-v="${k}" class="${(S.view===k||(k==='table'&&S.view==='stock'))?'on':''}">${l}${k==='watch'&&S.stars.size?` <small>${S.stars.size}</small>`:''}${k==='book'&&S.book.size?` <small>${S.book.size}</small>`:''}</button>`).join('');
   $('#views').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.view=b.dataset.v;document.body.classList.remove('drawer');window.scrollTo(0,0);render()});
   $('#filtersbtn').onclick=()=>document.body.classList.toggle('drawer');
   const ix=D.index, n50=ix.NIFTY50||{}, n500=ix.NIFTY500||{}, mid=ix.NIFTYMIDCAP50||{}, sml=ix.NIFTYSMALLCAP||{};
@@ -518,6 +532,19 @@ function trackPanel(full){ const T=(D.track||{}).modes||{}; const rows=T[S.mode]
     ${!full&&rows.length>8?`<div class="help" style="margin-top:6px">${rows.length-8} older lists in the Backtest tab.</div>`:''}</div>` }
 
 // ---------- render: table ----------
+function exchangePanel(){
+  const N=D.nse; if(!N)return '';
+  const by=Object.fromEntries(D.stocks.map(s=>[s.symbol,s]));
+  const counts={backed:0,hollow:0,covering:0}; for(const s of D.stocks){const st=(s.mq||{}).st; if(st&&counts[st]!=null)counts[st]++}
+  const tri=(N.trifecta||[]).filter(sym=>by[sym]);
+  const stale=!N.fresh?`<span style="color:var(--warn)">exchange data is stale (${esc(N.asof)}) — run the morning pull</span>`:'';
+  return `<div class="card xchg" style="margin-bottom:14px"><h3>Exchange tape <span>delivery % + futures OI · ${esc(N.asof)}</span></h3>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:12.5px">
+      ${stale||`<span><span class="mqb backed">Backed</span> ${counts.backed}</span><span><span class="mqb hollow">Hollow</span> ${counts.hollow} <span style="color:var(--muted)">don't chase</span></span><span><span class="mqb covering">Covering</span> ${counts.covering} <span style="color:var(--muted)">exits, not entries</span></span>`}
+      <span style="margin-left:auto"><b>Trifecta</b> <span style="color:var(--muted)" title="Delivery spike + futures OI build while price is still quiet — the strongest accumulation signal in our tests (+1.7%/20d excess). Rare by design.">?</span>:
+      ${tri.length?tri.map(sym=>`<button class="iconbtn" data-s="${sym}" style="padding:2px 8px">${sym}</button>`).join(' '):'<span style="color:var(--muted)">none today — it fires a few times a week across the whole market</span>'}</span>
+    </div></div>`;
+}
 function renderTable(){
   computeRows(); const rows=sortRows(filtered()); const m=S.mode; const cols=COLS[m];
   const shown=rows.slice(0,S.limit); const passing=rows.filter(r=>!r.fails.length).length;
@@ -531,13 +558,13 @@ function renderTable(){
     <div class="tile"><div class="lbl">Watchlist</div><div class="v">${S.stars.size}</div><div class="d">starred names</div></div>
   </div>`;
   const hasHist=!!(D.movers&&D.movers.prev_date);
-  $('#main').innerHTML = regimePanel() + moversPanel() + trackPanel(false) + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking <span class="cad">review every ${esc(MODES[m].review||'')}</span></h2><span class="sub">${esc(MODES[m].hold_note||'')} · click a row for the full page</span></div>
+  $('#main').innerHTML = regimePanel() + exchangePanel() + moversPanel() + trackPanel(false) + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking <span class="cad">review every ${esc(MODES[m].review||'')}</span></h2><span class="sub">${esc(MODES[m].hold_note||'')} · click a row for the full page</span></div>
   <div class="tblwrap"><table><thead><tr><th></th>${th('symbol','Stock')}<th>Sector</th>${th('mcap','Mcap ₹Cr','r')}${th('price','Price','r')}${th('score','Score')}${hasHist?th('delta','Δ1d'):''}<th title="Pillars: quality, growth, balance, cash, valuation, ownership | trend, momentum, RS, structure, volume">Pillars</th>${cols.map(c=>th(c[0],c[1],'r')).join('')}${th('flags','Flags')}<th>Gate</th></tr></thead>
-  <tbody>${shown.length?shown.map((r,i)=>{const s=r.st;const [src,k]=['',''];return `<tr data-s="${s.symbol}" class="${r.fails.length?'gated':''}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${S.stars.has(s.symbol)?'<span style="color:var(--warn)">★</span> ':''}${esc(s.symbol)}</span><span class="nm" title="${esc(s.name)}">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${fmtIN(s.mcap_cr)}</td><td class="r num">${px(s.price)}</td><td><div class="scorebar"><div class="bar"><i style="width:${r.score.toFixed(0)}%;background:${barColor(r.score)}"></i></div><b>${r.score.toFixed(0)}</b></div></td>${hasHist?`<td class="r delta ${cls((s.hist||{})[m]?.d1)}">${isNum((s.hist||{})[m]?.d1)?((s.hist[m].d1>0?'+':'')+s.hist[m].d1.toFixed(1)):'–'}</td>`:''}<td>${strip(s)}</td>${cols.map(c=>{const [key,,f]=c;const [src,k]=key.split(':');const v=s[src][k];return `<td class="r num ${f==='spct'?cls(v):''}">${fmtCol(f,v)}</td>`}).join('')}<td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td></tr>`}).join(''):`<tr><td colspan="20" class="empty">Nothing matches. Loosen a filter or a gate.</td></tr>`}</tbody></table>
+  <tbody>${shown.length?shown.map((r,i)=>{const s=r.st;const [src,k]=['',''];return `<tr data-s="${s.symbol}" class="${r.fails.length?'gated':''}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${S.stars.has(s.symbol)?'<span style="color:var(--warn)">★</span> ':''}${esc(s.symbol)} ${mqBadge(s)}</span><span class="nm" title="${esc(s.name)}">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${fmtIN(s.mcap_cr)}</td><td class="r num">${px(s.price)}</td><td><div class="scorebar"><div class="bar"><i style="width:${r.score.toFixed(0)}%;background:${barColor(r.score)}"></i></div><b>${r.score.toFixed(0)}</b></div></td>${hasHist?`<td class="r delta ${cls((s.hist||{})[m]?.d1)}">${isNum((s.hist||{})[m]?.d1)?((s.hist[m].d1>0?'+':'')+s.hist[m].d1.toFixed(1)):'–'}</td>`:''}<td>${strip(s)}</td>${cols.map(c=>{const [key,,f]=c;const [src,k]=key.split(':');const v=s[src][k];return `<td class="r num ${f==='spct'?cls(v):''}">${fmtCol(f,v)}</td>`}).join('')}<td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td></tr>`}).join(''):`<tr><td colspan="20" class="empty">Nothing matches. Loosen a filter or a gate.</td></tr>`}</tbody></table>
   ${rows.length>S.limit?`<div class="more"><button id="more">Show ${Math.min(150,rows.length-S.limit)} more (${rows.length-S.limit} remaining)</button></div>`:''}</div>`;
   $('#main').querySelectorAll('thead th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(S.sort.key===k)S.sort.dir*=-1;else S.sort={key:k,dir:k==='symbol'?1:-1};renderMain()});
   $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=()=>openStock(t.dataset.s));
-  $('#main').querySelectorAll('.movers button[data-s]').forEach(b=>b.onclick=()=>openStock(b.dataset.s));
+  $('#main').querySelectorAll('.movers button[data-s], .xchg button[data-s]').forEach(b=>b.onclick=()=>openStock(b.dataset.s));
   const mb=$('#more'); if(mb)mb.onclick=()=>{S.limit+=150;renderMain()};
   window.__rows=rows;
 }
@@ -558,7 +585,8 @@ function renderStock(){
   <div class="shead"><div>
     <h2>${esc(st.symbol)}<small>${esc(st.name)}</small></h2>
     <div class="meta"><span>${esc(st.sector)} · ${esc(st.industry)}${st.lender?' · <em>lender model</em>':''}</span><span>${mcapBand(st.mcap_cr)} cap · ₹${fmtIN(st.mcap_cr)} Cr</span><span>₹${px(st.price)}</span><span>${isNum(T.ret_1m)?'1m '+pcell(T.ret_1m,spct):''} ${isNum(T.ret_3m)?'· 3m '+pcell(T.ret_3m,spct):''} ${isNum(T.ret_12m)?'· 12m '+pcell(T.ret_12m,spct):''}</span>
-    <button class="star ${S.stars.has(st.symbol)?'on':''}" id="starbtn" title="Watchlist">★</button></div>
+    <button class="star ${S.stars.has(st.symbol)?'on':''}" id="starbtn" title="Watchlist">★</button>
+    <button class="iconbtn" id="bookbtn" style="vertical-align:6px;margin-left:6px">${S.book.has(st.symbol)?'✓ In book':'+ Book'}</button> ${mqBadge(st)}</div>
     <div class="range52"><div class="ends"><span>52w low ₹${px(T.lo52)}</span><span>${isNum(T.from_52h)?pcell(T.from_52h,v=>spct(v)+' from high'):''}</span><span>52w high ₹${px(T.hi52)}</span></div><div class="track"><i style="left:${(rng*100).toFixed(1)}%"></i></div></div>
     ${st.summary?`<div class="desc">${esc(st.summary)}${st.website?` <a href="${esc(st.website)}" target="_blank" rel="noopener">site ↗</a>`:''}</div>`:''}
   </div>
@@ -580,6 +608,11 @@ function renderStock(){
   </div>`;
   // ---- charts
   html+=`<div class="grid2">
+    ${st.mq||st.filed?`<div class="card"><h3>Exchange tape <span>what NSE's own data says${D.nse?' · '+esc(D.nse.asof):''}</span></h3>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12.5px;align-items:center">
+      ${st.mq?`${st.mq.st?mqBadge(st)+' ':''}<span>Delivery <b>${isNum(st.mq.dp)?st.mq.dp.toFixed(0)+'%':'–'}</b>${isNum(st.mq.dp_med)?` <span style="color:var(--muted)">(norm ${st.mq.dp_med.toFixed(0)}%)</span>`:''}</span>${isNum(st.mq.oi5)?`<span>Fut. OI 5d <b class="${cls(st.mq.oi5)}">${spct(st.mq.oi5)}</b></span>`:''}${isNum(st.mq.vr5)?`<span>Volume <b>${st.mq.vr5.toFixed(1)}×</b> normal</span>`:''}${isNum(st.mq.ret5)?`<span>5d move <b class="${cls(st.mq.ret5)}">${spct(st.mq.ret5)}</b></span>`:''}`:''}
+      ${st.filed?`<span style="border-left:1px solid var(--line-2);padding-left:16px">Filed ${esc(st.filed.pe||'')}${st.filed.audited?` <span style="color:var(--muted)">(${esc(st.filed.audited)}, standalone)</span>`:''}: ${isNum(st.filed.sales_cr)?`sales ₹${fmtIN(st.filed.sales_cr)} Cr${isNum(st.filed.sales_yoy)?` <b class="${cls(st.filed.sales_yoy)}">${spct(st.filed.sales_yoy)}</b>`:''} · `:''}PAT ₹${fmtIN(st.filed.pat_cr)} Cr${isNum(st.filed.pat_yoy)?` <b class="${cls(st.filed.pat_yoy)}">${spct(st.filed.pat_yoy)} YoY</b>`:''}${isNum(st.filed.eps)?` · EPS ${st.filed.eps}`:''}</span>`:''}
+      </div></div>`:''}
     <div class="card"><h3>Last 80 sessions <span>close · 20 / 50 / 200 EMA · volume</span></h3><div id="chartD"></div><div class="legend"><span><i style="background:var(--ink)"></i>Close</span><span><i style="background:var(--up)"></i>20 EMA</span><span><i style="background:var(--warn)"></i>50 EMA</span><span><i style="background:var(--down)"></i>200 EMA</span></div></div>
     <div class="card"><h3>Two years, weekly <span>vs its own range</span></h3><div id="chartW"></div></div>
   </div>`;
@@ -621,6 +654,7 @@ function renderStock(){
   $('#main').innerHTML=html;
   $('#back').onclick=closeStock;
   $('#starbtn').onclick=e=>{S.stars.has(st.symbol)?S.stars.delete(st.symbol):S.stars.add(st.symbol);LS.set('stars',[...S.stars]);e.target.classList.toggle('on')};
+  const bb=$('#bookbtn'); if(bb)bb.onclick=e=>{S.book.has(st.symbol)?S.book.delete(st.symbol):S.book.add(st.symbol);LS.set('book',[...S.book]);e.target.textContent=S.book.has(st.symbol)?'✓ In book':'+ Book';renderTop()};
   $('#notes').oninput=e=>{S.notes[st.symbol]=e.target.value;LS.set('notes',S.notes)};
   $('#main').querySelectorAll('.pl').forEach(p=>p.onclick=()=>$('#fx-'+p.dataset.p).classList.toggle('open'));
   drawDaily(st); drawWeekly(st);
@@ -720,6 +754,41 @@ function renderWatch(){ computeRows(); const m=S.mode; const rows=ROWS.filter(r=
   $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=e=>{if(e.target.dataset.un)return;openStock(t.dataset.s)});
   $('#main').querySelectorAll('button[data-un]').forEach(b=>b.onclick=e=>{e.stopPropagation();S.stars.delete(b.dataset.un);LS.set('stars',[...S.stars]);render()});
 }
+// ---------- book: HOLD / ROTATE keep-band ----------
+function renderBook(){ const m=S.mode; const elig=eligibleRows(); const rank=new Map(elig.map((r,i)=>[r.st.symbol,i+1]));
+  const all=new Map(ROWS.map(r=>[r.st.symbol,r]));
+  const held=[...S.book].sort();
+  const band=3*Math.max(S.bookTarget,held.length||1);
+  const verdicts=held.map(sym=>{const r=all.get(sym); if(!r)return {sym,missing:true};
+    const rk=rank.get(sym); const gated=r.fails.length>0; const mq=(r.st.mq||{}).st;
+    const rotate=gated||!rk||rk>band||mq==='covering';
+    const why=gated?('gate: '+r.fails.join(', ')):!rk?'not eligible':rk>band?`rank ${rk} — outside the top ${band} band`:mq==='covering'?'short-covering rally — exit signal':`rank ${rk} of ${elig.length}`;
+    return {sym,r,rk,rotate,why,mq}});
+  const nRot=verdicts.filter(v=>v.rotate&&!v.missing).length;
+  const cand=elig.filter(r=>!S.book.has(r.st.symbol)&&!['hollow','covering'].includes((r.st.mq||{}).st)).slice(0,Math.max(nRot,5));
+  const vrow=v=>{ if(v.missing)return `<tr><td>${esc(v.sym)}</td><td colspan="7" style="color:var(--muted)">not in this universe build</td><td><button class="star on" data-un="${esc(v.sym)}">★</button></td></tr>`;
+    const s=v.r.st;const L=s.levels||{};
+    return `<tr data-s="${s.symbol}"><td><div class="symcell"><span class="sym">${esc(s.symbol)} ${mqBadge(s)}</span><span class="nm">${esc(s.name)}</span></div></td><td class="r num">${px(s.price)}</td><td class="r num">${isNum(v.r.score)?v.r.score.toFixed(0):'–'}</td><td class="r num">${v.rk||'–'}</td><td><span class="verdict ${v.rotate?'rotate':'hold'}">${v.rotate?'ROTATE':'HOLD'}</span></td><td style="font-size:11.5px;color:var(--muted)">${esc(v.why)}</td><td class="r num ${cls(s.T.vs_ema200)}">${spct(s.T.vs_ema200)}</td><td class="r num">${L.long?px(L.long.stop):'–'}</td><td><button class="star on" data-un="${s.symbol}" title="Remove from book">★</button></td></tr>`};
+  const crow=(r,i)=>{const s=r.st;const L=s.levels||{},z=L.long?sizing(L.long.trigger,L.long.stop):null;
+    return `<tr data-s="${s.symbol}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${esc(s.symbol)} ${mqBadge(s)}</span><span class="nm">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${px(s.price)}</td><td class="r num">${r.score.toFixed(0)}</td><td class="r num">${rank.get(s.symbol)}</td><td class="r num">${L.long?px(L.long.trigger):'–'}</td><td class="r num">${L.long?px(L.long.stop):'–'}</td><td class="r num">${z?fmtIN(z.qty):'–'}</td><td><button class="iconbtn" data-add="${s.symbol}" style="padding:2px 8px">+ add</button></td></tr>`};
+  $('#main').innerHTML=`<div class="tblhead"><h2>Book <span class="cad">review every 2 weeks</span></h2><span class="sub">the decade-tested operating mode: hold ${S.bookTarget}–${S.bookTarget+5} names, keep while inside the top-${band} band of ${esc(MODES[m].label)}, replace only dropouts</span></div>
+    <div class="card" style="margin-bottom:14px"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12.5px">
+      <span><b>${held.length}</b> held · <b class="${nRot?'neg':'pos'}">${nRot}</b> to rotate</span>
+      <span>Target book size <input type="number" id="bookN" value="${S.bookTarget}" min="5" max="30" style="width:56px"> → keep-band = top ${band}</span>
+      <span style="margin-left:auto"><input type="text" id="bookAdd" placeholder="Add symbol…" style="width:120px;text-transform:uppercase"> <button class="iconbtn" id="bookAddBtn">Add</button></span></div></div>
+    <div class="tblwrap"><table><thead><tr><th>Held</th><th class="r">Price</th><th class="r">Score</th><th class="r">Rank</th><th>Verdict</th><th>Why</th><th class="r">vs 200E</th><th class="r">Stop</th><th></th></tr></thead>
+    <tbody>${held.length?verdicts.map(vrow).join(''):`<tr><td colspan="9" class="empty">No holdings yet. Open a stock and press “+ Book”, or add symbols above. The backtest says: enter from the top of the list below, ${S.bookTarget}–${S.bookTarget+5} names, and only ever sell what falls out of the band.</td></tr>`}</tbody></table></div>
+    <div class="tblhead" style="margin-top:18px"><h2>Next in line <span class="cad">top of the eligible list, hollow/covering excluded</span></h2><span class="sub">replacements for rotations · sized at your rulebook settings</span></div>
+    <div class="tblwrap"><table><thead><tr><th></th><th>Stock</th><th>Sector</th><th class="r">Price</th><th class="r">Score</th><th class="r">Rank</th><th class="r">Trigger</th><th class="r">Stop</th><th class="r">Qty</th><th></th></tr></thead>
+    <tbody>${cand.length?cand.map(crow).join(''):'<tr><td colspan="10" class="empty">Nothing eligible right now.</td></tr>'}</tbody></table></div>
+    <div class="help" style="margin-top:10px">HOLD = still inside the keep-band and passing gates. ROTATE = fell out of the band, failed a gate, or flashed the short-covering exit. The band (3× book size) is what cut turnover from 100% to ~16% per cycle and made the edge survive costs in the 2016–2026 test. Holdings live in this browser only.</div>`;
+  $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=e=>{if(e.target.dataset.un||e.target.dataset.add)return;openStock(t.dataset.s)});
+  $('#main').querySelectorAll('button[data-un]').forEach(b=>b.onclick=e=>{e.stopPropagation();S.book.delete(b.dataset.un);LS.set('book',[...S.book]);render()});
+  $('#main').querySelectorAll('button[data-add]').forEach(b=>b.onclick=e=>{e.stopPropagation();S.book.add(b.dataset.add);LS.set('book',[...S.book]);render()});
+  $('#bookN').onchange=e=>{S.bookTarget=Math.max(5,Math.min(30,+e.target.value||15));LS.set('bookTarget',S.bookTarget);renderMain()};
+  const add=()=>{const v=($('#bookAdd').value||'').trim().toUpperCase(); if(!v)return; if(D.stocks.some(s=>s.symbol===v)){S.book.add(v);LS.set('book',[...S.book]);render()}else{$('#bookAdd').value='';$('#bookAdd').placeholder=v+' not in universe'}};
+  $('#bookAddBtn').onclick=add; $('#bookAdd').onkeydown=e=>{if(e.key==='Enter')add()};
+}
 // ---------- backtest ----------
 function renderBacktest(){ if(!BT||!BT.variants){$('#main').innerHTML=trackPanel(true)+'<div class="card"><h3>Backtest</h3><div class="help">No backtest results were embedded in this build. Run backtest.py and rebuild.</div></div>';return}
   const P=v=>isNum(v)?(v>0?'+':'')+(v*100).toFixed(1)+'%':'–';
@@ -745,7 +814,7 @@ function renderMethod(){ const fl=p=>Object.entries(D.factors).filter(([k,f])=>f
   </div></div>`}
 
 // ---------- main ----------
-function renderMain(){ if(S.view==='stock')renderStock(); else if(S.view==='watch')renderWatch(); else if(S.view==='backtest')renderBacktest(); else if(S.view==='method')renderMethod(); else renderTable() }
+function renderMain(){ if(S.view==='stock')renderStock(); else if(S.view==='watch')renderWatch(); else if(S.view==='book')renderBook(); else if(S.view==='backtest')renderBacktest(); else if(S.view==='method')renderMethod(); else renderTable() }
 function render(){ renderTop(); renderRail(); renderMain() }
 render();
 </script>

@@ -7,7 +7,7 @@ Output: model_output.json  (everything the HTML model needs)
         ranked_longterm.csv, ranked_swing_long.csv, ranked_swing_short.csv
         factors.csv  (every raw metric for every stock — audit trail)
 
-    python3 screener_model.py --data ~/Downloads/screener_data
+    python3 screener_model.py --data ~/screener_data
 
 Scoring philosophy
   * Every raw factor → cross-sectional percentile (0–100) inside the universe.
@@ -27,7 +27,7 @@ from datetime import datetime
 import numpy as np, pandas as pd
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--data", default=os.path.expanduser("~/Downloads/screener_data"))
+ap.add_argument("--data", default=os.path.expanduser("~/screener_data"))
 ap.add_argument("--out", default=None)
 ap.add_argument("--min-bars", type=int, default=260)
 args = ap.parse_args()
@@ -666,6 +666,132 @@ for i, r_ in enumerate(rows):
         "scores": comps, "fin": fin_block(r_["rec"]),
     })
 
+# ----------------------------------------------------------------------------- NSE exchange data: move quality, trifecta, filed results
+def nse_exchange_block(stocks):
+    """Delivery-% + futures-OI move-quality per stock, the trifecta list, and each stock's latest
+    FILED quarterly numbers. All from DATA/nse (collected by the morning pull). Absent → no-op."""
+    import glob as _g
+    nsedir = os.path.join(DATA, "nse")
+    if not os.path.isdir(nsedir): return None
+    # --- delivery panel: last 80 sessions from daily bhavcopies (fallback: packed panel)
+    Dfr = []
+    for f in sorted(_g.glob(os.path.join(nsedir, "bhav", "sec_*.csv")))[-80:]:
+        try:
+            d = pd.read_csv(f, skipinitialspace=True)
+            d.columns = [c.strip().upper() for c in d.columns]
+            d = d[d["SERIES"].astype(str).str.strip() == "EQ"]
+            Dfr.append(pd.DataFrame({"date": os.path.basename(f)[4:14], "symbol": d["SYMBOL"].str.strip(),
+                                     "close": pd.to_numeric(d["CLOSE_PRICE"], errors="coerce"),
+                                     "qty": pd.to_numeric(d["TTL_TRD_QNTY"], errors="coerce"),
+                                     "deliv_per": pd.to_numeric(d["DELIV_PER"], errors="coerce")}))
+        except Exception: pass
+    if len(Dfr) < 60:
+        p = os.path.join(nsedir, "delivery_panel.csv.gz")
+        if os.path.exists(p):
+            dp_all = pd.read_csv(p)
+            keep_dates = sorted(dp_all["date"].unique())[-80:]
+            Dfr = [dp_all[dp_all["date"].isin(keep_dates)]]
+    if not Dfr: return None
+    D = pd.concat(Dfr)
+    CL = D.pivot_table(index="date", columns="symbol", values="close").sort_index()
+    QT = D.pivot_table(index="date", columns="symbol", values="qty").sort_index()
+    DP = D.pivot_table(index="date", columns="symbol", values="deliv_per").sort_index()
+    if len(CL) < 60: return None
+    nse_asof = str(CL.index[-1])
+    ret5 = (CL.iloc[-1] / CL.iloc[-6] - 1) if len(CL) > 6 else None
+    vr5 = QT.rolling(5).mean().iloc[-1] / QT.shift(5).rolling(50, min_periods=30).mean().iloc[-1]
+    dp_now = DP.iloc[-1]
+    dp_med = DP.shift(1).rolling(60, min_periods=40).median().iloc[-1]
+    # --- futures OI: last 15 sessions (fallback: packed panel)
+    oi5 = {}
+    Ofr = []
+    for f in sorted(_g.glob(os.path.join(nsedir, "fo", "fo_*.csv")))[-15:]:
+        try: Ofr.append(pd.read_csv(f))
+        except Exception: pass
+    if not Ofr:
+        p = os.path.join(nsedir, "fo_panel.csv.gz")
+        if os.path.exists(p):
+            fo_all = pd.read_csv(p)
+            Ofr = [fo_all[fo_all["date"].isin(sorted(fo_all["date"].unique())[-15:])]]
+    if Ofr:
+        FO = pd.concat(Ofr)
+        if "TckrSymb" in FO.columns: FO = FO.rename(columns={"TckrSymb": "symbol"})
+        OIP = FO.pivot_table(index="date", columns="symbol", values="oi").sort_index()
+        if len(OIP) > 6:
+            oi5 = (OIP.iloc[-1] / OIP.iloc[-6] - 1).to_dict()
+    # --- filed results panel
+    filed = {}
+    p = os.path.join(nsedir, "results_panel.csv.gz")
+    if os.path.exists(p):
+        try:
+            R = pd.read_csv(p, parse_dates=["period_end_dt"])
+            R = R[R["period_end_dt"].notna() & R["pat"].notna()]
+            for sym, g in R.groupby("symbol"):
+                g = g.sort_values("period_end_dt")
+                last = g.iloc[-1]
+                ago = g[(g["period_end_dt"] >= last["period_end_dt"] - pd.Timedelta(days=376)) &
+                        (g["period_end_dt"] <= last["period_end_dt"] - pd.Timedelta(days=354))]
+                d = {"pe": last["period_end_dt"].strftime("%Y-%m-%d"),
+                     "sales_cr": r(last["net_sales"] / 100 if pd.notna(last.get("net_sales")) else (last["income"] / 100 if pd.notna(last.get("income")) else None), 0),
+                     "pat_cr": r(last["pat"] / 100, 0), "eps": r(last.get("eps_dil") if pd.notna(last.get("eps_dil")) else last.get("eps"), 2),
+                     "audited": last.get("audited") if isinstance(last.get("audited"), str) else None,
+                     "filed_at": last.get("filed_at") if isinstance(last.get("filed_at"), str) else None}
+                if len(ago):
+                    a = ago.iloc[-1]
+                    d["pat_yoy"] = r(growth(last["pat"], a["pat"]), 4)
+                    sl, sa = last.get("net_sales") or last.get("income"), a.get("net_sales") or a.get("income")
+                    if pd.notna(sl) and pd.notna(sa): d["sales_yoy"] = r(growth(sl, sa), 4)
+                filed[sym] = {k: v for k, v in d.items() if v is not None}
+        except Exception as e:
+            log("nse: results panel unreadable:", str(e)[:80])
+    # --- attach to stocks
+    trifecta = []
+    fresh = abs((pd.Timestamp(ASOF) - pd.Timestamp(nse_asof)).days) <= 7
+    for s in stocks:
+        sym = s["symbol"]
+        if sym in filed:
+            s["filed"] = filed[sym]
+            ypat = None
+            fq = s.get("fin", {}).get("q", {})
+            qd = s.get("fin", {}).get("q_dates") or []
+            pe = filed[sym].get("pe")
+            if pe and pe in qd:
+                v = fq.get("pat", [])[qd.index(pe)] if len(fq.get("pat", [])) > qd.index(pe) else None
+                ypat = v / 1e7 if v else None   # INR → Cr
+            fpat = filed[sym].get("pat_cr")
+            if ypat and fpat and abs(ypat) > 5 and abs(fpat) > 5:
+                ratio = fpat / ypat
+                if ratio > 5 or ratio < 0.2:
+                    s["flags"].append({"sev": "amber", "code": "DATA", "text": f"Filed (standalone) PAT Rs {fpat:,.0f} Cr vs Yahoo Rs {ypat:,.0f} Cr for the same quarter - consolidated/standalone gap or a data error; check the filings before trusting ratios"})
+                    s["n_amber"] += 1
+        if not fresh or sym not in dp_now.index: continue
+        dpv, medv = dp_now.get(sym), dp_med.get(sym)
+        r5 = ret5.get(sym) if ret5 is not None else None
+        o5 = oi5.get(sym)
+        v5 = vr5.get(sym)
+        if dpv is None or (isinstance(dpv, float) and math.isnan(dpv)): continue
+        spike = (medv is not None and not math.isnan(medv) and dpv >= 1.5 * medv and dpv >= 50)
+        st = None
+        if spike and o5 is not None and not math.isnan(o5) and o5 >= 0.10 and r5 is not None and abs(r5) < 0.05:
+            st = "accumulating"; trifecta.append(sym)
+        elif r5 is not None and r5 > 0.04:
+            if medv is not None and not math.isnan(medv) and dpv <= 0.5 * medv: st = "hollow"
+            elif o5 is not None and not math.isnan(o5) and o5 <= -0.08: st = "covering"
+            elif (o5 is not None and not math.isnan(o5) and o5 > 0.02) or spike or (medv and not math.isnan(medv) and dpv >= 1.2 * medv): st = "backed"
+        s["mq"] = {k: v for k, v in {"st": st, "dp": r(dpv, 1), "dp_med": r(medv, 1) if medv is not None and not math.isnan(medv) else None,
+                                     "oi5": r(o5, 3) if o5 is not None and not math.isnan(o5) else None,
+                                     "ret5": r(r5, 3) if r5 is not None and not math.isnan(r5) else None,
+                                     "vr5": r(v5, 2) if v5 is not None and not math.isnan(v5) else None}.items() if v is not None}
+    log(f"nse: move-quality for {sum(1 for s in stocks if 'mq' in s)} stocks (asof {nse_asof}, fresh={fresh}), "
+        f"filed results for {sum(1 for s in stocks if 'filed' in s)}, trifecta {len(trifecta)}")
+    return {"asof": nse_asof, "fresh": bool(fresh), "trifecta": sorted(trifecta), "have_oi": bool(oi5)}
+
+nse_meta = None
+try:
+    nse_meta = nse_exchange_block(stocks)
+except Exception as e:
+    log("nse block failed (continuing without):", str(e)[:120])
+
 # sector aggregates
 sec = {}
 for s in stocks:
@@ -792,7 +918,7 @@ log(f"history: {len(hfiles)} prior runs on file; movers computed vs {movers['pre
 
 factor_meta = {k: {"src": v[0], "higher": v[2], "pillar": v[3], "sector_rel": v[4], "lender": v[5], "nonlender": v[6]} for k, v in FACTORS.items()}
 out = {"built": datetime.now().strftime("%Y-%m-%d %H:%M"), "asof": ASOF, "data_built": bundle.get("built"), "mcap_floor_cr": bundle.get("mcap_floor_cr"),
-       "n": len(stocks), "index": index_ret, "sectors": sectors, "regime": regime, "movers": movers, "track": track, "modes": MODES, "invert_for_short": INVERT_FOR_SHORT, "pillars": PILLARS, "factors": factor_meta, "stocks": stocks}
+       "n": len(stocks), "index": index_ret, "sectors": sectors, "regime": regime, "movers": movers, "track": track, "nse": nse_meta, "modes": MODES, "invert_for_short": INVERT_FOR_SHORT, "pillars": PILLARS, "factors": factor_meta, "stocks": stocks}
 with open(os.path.join(OUT, "model_output.json"), "w") as f:
     json.dump(out, f, separators=(",", ":"))
 log(f"wrote model_output.json ({os.path.getsize(os.path.join(OUT, 'model_output.json'))/1e6:.1f} MB)")

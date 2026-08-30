@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """build_html.py — embed model_output.json (+ backtest summaries, if present) into the template → NSE-Factor-Desk.html
 
-    python3 build_html.py --data ~/Downloads/screener_data [--template model_template.html]
+    python3 build_html.py --data ~/screener_data [--template model_template.html]
 """
 import os, json, glob, argparse
 ap = argparse.ArgumentParser()
-ap.add_argument("--data", default=os.path.expanduser("~/Downloads/screener_data"))
+ap.add_argument("--data", default=os.path.expanduser("~/screener_data"))
 ap.add_argument("--template", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_template.html"))
 ap.add_argument("--out", default=None)
 a = ap.parse_args()

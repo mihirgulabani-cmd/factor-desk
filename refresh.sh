@@ -5,7 +5,7 @@
 #   bash ~/Downloads/factor-desk/refresh.sh --quiet    # no browser open (used by the scheduled job)
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-DATA="$HOME/Downloads/screener_data"
+DATA="$HOME/screener_data"
 QUIET=0
 for a in "$@"; do
   [ "$a" == "--full" ] && rm -rf "$DATA/fundamentals" "$DATA/mcap.csv" "$DATA/universe_all.csv"
