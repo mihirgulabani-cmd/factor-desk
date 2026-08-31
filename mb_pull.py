@@ -162,25 +162,28 @@ def stage_shareholding(syms):
 
 # ---------------------------------------------------------------- D. industry map (sector-rotation features need it)
 def stage_meta(syms):
+    """Sector/industry per symbol — via Yahoo (NSE's quote API returns empty shells to scripts)."""
     META = os.path.join(NSE_D, "meta"); os.makedirs(META, exist_ok=True)
-    nse = NSE()
-    todo = [s for s in syms if not os.path.exists(os.path.join(META, f"{s}.json"))]
-    log(f"industry map: {len(syms)-len(todo)} on disk, fetching {len(todo)} (~{len(todo)*0.75/60:.0f} min)")
+    def needs(s):
+        p = os.path.join(META, f"{s}.json")
+        if not os.path.exists(p): return True
+        try: return json.load(open(p)).get("sector") is None   # empty shells refetch
+        except Exception: return True
+    todo = [s for s in syms if needs(s)]
+    log(f"industry map: {len(syms)-len(todo)} on disk, fetching {len(todo)} via Yahoo (~{len(todo)*1.1/60:.0f} min)")
     got = 0
     for i, s in enumerate(todo, 1):
         try:
-            j = nse.get_json(f"https://www.nseindia.com/api/quote-equity?symbol={requests.utils.quote(s)}")
-            info = (j or {}).get("industryInfo") or {}
-            meta = {"symbol": s, "macro": info.get("macro"), "sector": info.get("sector"),
-                    "industry": info.get("industry"), "basic": info.get("basicIndustry"),
-                    "listed": ((j or {}).get("metadata") or {}).get("listingDate"),
-                    "_fetched": datetime.now().strftime("%Y-%m-%d")}
-            json.dump(meta, open(os.path.join(META, f"{s}.json"), "w"))
-            got += 1
+            info = yf.Ticker(s + ".NS").info or {}
+            if info.get("sector") or info.get("industry"):
+                meta = {"symbol": s, "macro": None, "sector": info.get("sector"), "industry": info.get("industry"),
+                        "basic": info.get("industryKey"), "listed": None, "_fetched": datetime.now().strftime("%Y-%m-%d")}
+                json.dump(meta, open(os.path.join(META, f"{s}.json"), "w"))
+                got += 1
         except Exception:
             pass
         if i % 150 == 0: log(f"  meta {i}/{len(todo)} ({got} ok)")
-        time.sleep(0.5 + random.random() * 0.25)
+        time.sleep(0.6 + random.random() * 0.3)
     log(f"industry map: +{got}; total {len(os.listdir(META))}")
 
 def pack_meta():

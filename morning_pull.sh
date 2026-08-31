@@ -10,4 +10,5 @@ echo "===== morning pull $(date) ====="
 "$PY" "$HERE/nse_pull.py"
 "$PY" "$HERE/nse_results.py"
 "$PY" "$HERE/nse_results.py" --pack
+[ -f "$HERE/mb_radar.py" ] && "$PY" "$HERE/mb_radar.py" --refresh
 echo "===== morning pull done $(date) ====="

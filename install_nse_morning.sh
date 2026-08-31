@@ -22,8 +22,8 @@ fi
 
 mkdir -p "$HOME/Library/LaunchAgents" "$HOME/screener_data/bin"
 # copy the runner scripts OUT of Documents/Downloads (macOS blocks background jobs there)
-for f in morning_pull.sh nse_pull.py nse_results.py pack_nse.py; do
-  cp "$HERE/$f" "$HOME/screener_data/bin/$f"
+for f in morning_pull.sh nse_pull.py nse_results.py pack_nse.py mb_radar.py; do
+  [ -f "$HERE/$f" ] && cp "$HERE/$f" "$HOME/screener_data/bin/$f"
 done
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

@@ -69,7 +69,14 @@ bt_json = json.dumps(bt) if bt else "null"
 
 with open(a.template) as f:
     tpl = f.read()
-html = tpl.replace("__DATA__", safe(data)).replace("__BT__", safe(bt_json))
+rd_path = find("radar.json")
+rd_json = "null"
+if rd_path:
+    try:
+        rd_json = json.dumps(json.load(open(rd_path)))
+    except Exception:
+        pass
+html = tpl.replace("__DATA__", safe(data)).replace("__BT__", safe(bt_json)).replace("__RADAR__", safe(rd_json))
 out = a.out or os.path.join(a.data, "NSE-Factor-Desk.html")
 with open(out, "w") as f:
     f.write(html)

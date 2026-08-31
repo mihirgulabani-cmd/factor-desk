@@ -334,10 +334,12 @@ kbd{font-family:var(--mono);font-size:10.5px;background:var(--surface-2);border:
 <div class="tip" id="tip"></div>
 <script id="data" type="application/json">__DATA__</script>
 <script id="btdata" type="application/json">__BT__</script>
+<script id="radardata" type="application/json">__RADAR__</script>
 <script>
 'use strict';
 const D = JSON.parse(document.getElementById('data').textContent);
 let BT = null; try { BT = JSON.parse(document.getElementById('btdata').textContent) } catch(e) { BT = null }
+let RD = null; try { RD = JSON.parse(document.getElementById('radardata').textContent) } catch(e) { RD = null }
 const PDESC = {quality:'Returns on capital and margins — is this a good business?',growth:'Sales and profit growth, annual and latest quarter (date-matched)',balance:'Leverage, interest cover, dilution',cash:'Does profit turn into cash? CFO/PAT, FCF, other income, receivables',valuation:'P/E, P/B, EV/EBITDA, PEG — half-weighted against the sector',ownership:'Promoter/insider and institutional holding (current only)',trend:'Position vs 20/50/200 EMA, stack, 200 EMA slope',momentum:'3m, 6m, 12-1 returns and risk-adjusted momentum',rs:'Return relative to Nifty 500 over 3/6/12m and RS-line position',structure:'52w position, higher highs/lows, distance to breakout, efficiency, drawdown',volume:'Turnover, accumulation (up/down-day volume), volume expansion'};
 const PILLARS = D.pillars, MODES = D.modes, INV = new Set(D.invert_for_short);
 const FUND_P = new Set(['quality','growth','balance','cash','valuation','ownership']);
@@ -438,7 +440,7 @@ function renderTop(){
   $('#asof').textContent = `prices to ${D.asof} · ${D.n} stocks ≥ ₹${fmtIN(D.mcap_floor_cr)} Cr`;
   $('#modes').innerHTML = Object.keys(MODES).map(m=>`<button data-m="${m}" class="${S.mode===m?'on '+(MODES[m].dir==='short'?'short':m==='swing_long'?'long':''):''}">${esc(MODES[m].label)}</button>`).join('');
   $('#modes').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;S.sort={key:'score',dir:-1};if(S.view==='stock')S.view='table';render()});
-  const VIEWS=[['table','Ranking'],['book','Book'],['watch','Watchlist'],['backtest','Backtest'],['method','Method']];
+  const VIEWS=[['table','Ranking'],['book','Book'],['watch','Watchlist'],...(RD&&RD.rows&&RD.rows.length?[['radar','Radar']]:[]),['backtest','Backtest'],['method','Method']];
   $('#views').innerHTML=VIEWS.map(([k,l])=>`<button data-v="${k}" class="${(S.view===k||(k==='table'&&S.view==='stock'))?'on':''}">${l}${k==='watch'&&S.stars.size?` <small>${S.stars.size}</small>`:''}${k==='book'&&S.book.size?` <small>${S.book.size}</small>`:''}</button>`).join('');
   $('#views').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.view=b.dataset.v;document.body.classList.remove('drawer');window.scrollTo(0,0);render()});
   $('#filtersbtn').onclick=()=>document.body.classList.toggle('drawer');
@@ -820,6 +822,39 @@ function renderBook(){ const m=S.mode; const elig=eligibleRows(); const rank=new
   const add=()=>{const v=($('#bookAdd').value||'').trim().toUpperCase(); if(!v)return; if(D.stocks.some(s=>s.symbol===v)){S.book.add(v);LS.set('book',[...S.book]);render()}else{$('#bookAdd').value='';$('#bookAdd').placeholder=v+' not in universe'}};
   $('#bookAddBtn').onclick=add; $('#bookAdd').onkeydown=e=>{if(e.key==='Enter')add()};
 }
+// ---------- multibagger radar ----------
+function renderRadar(){ if(!RD||!RD.rows){$('#main').innerHTML='<div class="card"><h3>Radar</h3><div class="help">No radar data in this build — it comes from the exchange-data machine on the desk Mac.</div></div>';return}
+  const inUniv = new Set(D.stocks.map(s=>s.symbol));
+  const O = RD.odds||{};
+  const sc = s=>`<span class="verdict ${s>=4?'hold':''}" style="${s>=4?'':'background:var(--chip);color:var(--ink)'}">${s}</span>`;
+  const row=(r,i)=>{const click=inUniv.has(r.symbol);
+    return `<tr ${click?`data-s="${r.symbol}"`:''} style="${click?'':'cursor:default'}"><td class="rank">${i+1}</td><td>${sc(r.score)}</td>
+    <td><div class="symcell"><span class="sym">${esc(r.symbol)}${(r.flags||[]).includes('SURVEILLANCE')?' <span class="chipflag" style="color:var(--down);font-size:10px;font-weight:700">⚠ SURVEILLANCE</span>':''}</span><span class="nm" title="${esc(r.name||'')}">${esc(r.name||'')}</span></div></td>
+    <td style="font-size:11px;color:var(--muted)">${esc(r.why||'')}</td>
+    <td>${r.sector?`<span class="sectag">${esc(r.sector)}${r.heat?` <b class="${r.heat==='hot'?'pos':r.heat==='cold'?'neg':''}">${r.heat}</b>`:''}</span>`:'–'}</td>
+    <td class="r num">${fmtIN(r.mcap_cr)}</td><td class="r num">${px(r.price)}</td>
+    <td class="r num ${cls(r.ret6)}">${spct(r.ret6)}</td><td class="r num ${cls(r.dd_ath)}">${spct(r.dd_ath)}</td>
+    <td class="r num">${isNum(r.volreg)?r.volreg.toFixed(1)+'x':'–'}</td>
+    <td class="r num ${cls(r.prom_chg)}">${isNum(r.prom_chg)?(r.prom_chg>0?'+':'')+r.prom_chg.toFixed(1)+'pp':'–'}</td>
+    <td class="r num">${fmtIN(r.turn_l)}</td>
+    <td style="font-size:10.5px;color:var(--muted)">${(r.flags||[]).filter(f=>f!=='SURVEILLANCE').join(' ')}</td></tr>`};
+  $('#main').innerHTML=`<div class="tblhead"><h2>Multibagger Radar <span class="cad">as of ${esc(RD.asof||'')}</span></h2><span class="sub">every NSE name ≥ ₹50 Cr scored on the validated precursors · ${RD.n_listed} names at score ≥ 2 of ${fmtIN(RD.n_universe)} scanned</span></div>
+  ${RD.context?`<div class="card" style="margin-bottom:14px;border-left:4px solid ${RD.context==='CRUSHED'?'var(--up)':RD.context==='MODERATE'?'var(--warn)':'var(--down)'}"><div style="display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;font-size:12.5px">
+    <span style="font-size:15px;font-weight:700">Market context: ${esc(RD.context)}</span>
+    <span>median stock is <b class="${cls(RD.mkt_dd)}">${spct(RD.mkt_dd)}</b> from its all-time high</span>
+    <span>historical score-3+ win rate in this context: <b>${RD.ctx_win}%</b> <span style="color:var(--muted)">(crushed 37% · moderate 21% · near highs 11%)</span></span>
+    <span style="margin-left:auto"><b>Deploy:</b> ${esc(RD.ctx_deploy)}</span></div></div>`:''}
+  <div class="card" style="margin-bottom:14px"><div style="font-size:12.5px;max-width:76ch">
+    <p style="margin:2px 0"><strong>The odds, from 123,000 stock-months (2017–2025):</strong> base rate of doubling in 12 months ≈ ${O.base||10.2}% · score 2 ≈ ${O['2']||14}% · score 3 ≈ ${O['3']||19}% · score 4 ≈ ${O['4']||24}%${O['5']?` · score 5 ≈ ${O['5']}%`:''}. Average forward year rises from +12% (score 0) to +61% (score 4) and +76% (score 5); the disaster tail (−50% or worse) stays ~5–7% at every score.</p>
+    <p style="margin:6px 0 2px"><strong>The rules that keep this survivable:</strong> this is a <em>basket</em> instrument — 8–10 names, ≤ 10% of the pot in total, sized so any one going −80% costs ~1% of capital. Never one conviction bet. <span style="color:var(--down);font-weight:600">⚠ SURVEILLANCE</span> names get no size recommendation at all. The score amplifies the market: in 2018-type years this list loses more than the index — the sleeve cap is the protection, not timing.</p>
+  </div></div>
+  <div class="tblwrap"><table><thead><tr><th></th><th>Score</th><th>Stock</th><th>Why</th><th>Sector</th><th class="r">Mcap ₹Cr</th><th class="r">Price</th><th class="r">6m</th><th class="r">vs ATH</th><th class="r">Vol regime</th><th class="r">Promoter Δ2q</th><th class="r">Turnover ₹L</th><th>Notes</th></tr></thead>
+  <tbody>${RD.rows.slice(0,S.radarLimit||150).map(row).join('')}</tbody></table>
+  ${RD.rows.length>(S.radarLimit||150)?`<div class="more"><button id="rmore">Show more (${RD.rows.length-(S.radarLimit||150)} remaining)</button></div>`:''}</div>
+  <div class="help" style="margin-top:10px">Names inside the main ₹1,000 Cr universe are clickable for the full page; smaller names are radar-only (research them before touching them). Score parts: fallen angel (≥60% below ATH) · volume regime shift · small (&lt;₹500 Cr) · 6m momentum · promoter adding · hot sector (top-tercile 3m sector return) — minus one for promoter selling or a cold sector. Every part era-consistent in the 2017–2025 study. Survivorship caveat: delisted names are absent from the history behind these odds.</div>`;
+  $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=()=>openStock(t.dataset.s));
+  const rm=$('#rmore'); if(rm)rm.onclick=()=>{S.radarLimit=(S.radarLimit||150)+150;renderMain()};
+}
 // ---------- backtest ----------
 function renderBacktest(){ if(!BT||!BT.variants){$('#main').innerHTML=trackPanel(true)+'<div class="card"><h3>Backtest</h3><div class="help">No backtest results were embedded in this build. Run backtest.py and rebuild.</div></div>';return}
   const P=v=>isNum(v)?(v>0?'+':'')+(v*100).toFixed(1)+'%':'–';
@@ -854,7 +889,7 @@ function renderMethod(){ const fl=p=>Object.entries(D.factors).filter(([k,f])=>f
   </div></div>`}
 
 // ---------- main ----------
-function renderMain(){ if(S.view==='stock')renderStock(); else if(S.view==='watch')renderWatch(); else if(S.view==='book')renderBook(); else if(S.view==='backtest')renderBacktest(); else if(S.view==='method')renderMethod(); else renderTable() }
+function renderMain(){ if(S.view==='stock')renderStock(); else if(S.view==='watch')renderWatch(); else if(S.view==='book')renderBook(); else if(S.view==='radar')renderRadar(); else if(S.view==='backtest')renderBacktest(); else if(S.view==='method')renderMethod(); else renderTable() }
 function render(){ renderTop(); renderRail(); renderMain() }
 render();
 </script>
