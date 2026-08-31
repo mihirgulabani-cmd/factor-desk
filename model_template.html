@@ -315,6 +315,41 @@ kbd{font-family:var(--mono);font-size:10.5px;background:var(--surface-2);border:
   .kv{grid-template-columns:1fr 1fr}
   .pl{grid-template-columns:84px 1fr 34px}
 }
+/* ---- Aug-2026 clarity pass ---- */
+.sec.fold h3{cursor:pointer;user-select:none;margin-bottom:0;padding:6px 0}
+.sec.fold h3 .tw{color:var(--muted);font-size:10px;transition:transform .15s;margin-left:6px}
+.sec.fold.open h3{margin-bottom:8px}
+.sec.fold.open h3 .tw{transform:rotate(90deg)}
+.sec.fold .secbody{display:none}
+.sec.fold.open .secbody{display:block}
+.ctxfold{margin-bottom:14px}
+.ctxfold>button{width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-family:var(--cond);font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:10px;box-shadow:var(--shadow)}
+.ctxfold>button .tw{color:var(--muted);font-size:10px;transition:transform .15s}
+.ctxfold.open>button{border-radius:12px 12px 0 0}
+.ctxfold.open>button .tw{transform:rotate(90deg)}
+.ctxfold>button .mini{font-family:var(--sans);font-weight:400;font-size:11.5px;color:var(--muted);margin-left:auto;text-align:right}
+.ctxfold .ctxbody{display:none}
+.ctxfold.open .ctxbody{display:block;border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 4px;background:var(--surface)}
+.ctxfold.open .ctxbody .card{border:0;box-shadow:none;padding-left:0;padding-right:0}
+.coltoggle{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;margin-left:12px;vertical-align:middle}
+.coltoggle button{border:0;background:var(--surface);color:var(--muted);font-size:11px;padding:3px 10px;cursor:pointer}
+.coltoggle button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.aread{margin-bottom:14px}
+.aread .lede{font-size:13.5px;max-width:86ch;margin:0 0 10px;line-height:1.55}
+.aread .items{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:8px 18px}
+.aread .it{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.5;max-width:78ch}
+.aread .it b{font-weight:600}
+.vchip{flex:none;display:inline-block;margin-top:2px;font-family:var(--cond);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
+.vchip.good{background:var(--up-soft);color:var(--up)}
+.vchip.ok{background:var(--accent-soft);color:var(--accent-ink)}
+.vchip.warn{background:var(--warn-soft);color:var(--warn)}
+.vchip.bad{background:var(--down-soft);color:var(--down)}
+.finread{margin-top:10px;border-top:1px dashed var(--line-2);padding-top:8px;font-size:12px;color:var(--ink-2);line-height:1.55}
+.finread b{font-weight:600;color:var(--ink)}
+.finread .vchip{margin-top:0;vertical-align:1px}
+tr.shellrow td{opacity:.45}
+tr.shellrow:hover td{opacity:.8}
+.shellchip{font-family:var(--cond);font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:5px;background:var(--grey-soft);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -369,6 +404,8 @@ const S = {
   f:{q:'',sectors:new Set(),cap:'all',turnover:0,noRed:false,lenders:true,minScore:0,minCov:0.6,stars:false},
   sort:{key:'score',dir:-1},
   stars:new Set(LS.get('stars',[])), notes:LS.get('notes',{}), book:new Set(LS.get('book',[])), bookTarget:LS.get('bookTarget',15),
+  simpleCols:LS.get('simpleCols',true), ctxOpen:LS.get('ctxOpen',false), radarView:'crushed',
+  railOpen:Object.assign({gates:false,filters:true,weights:false,sizing:false,help:false},LS.get('railOpen',{})),
 };
 const savedW = LS.get('weights',null); if(savedW){for(const m in savedW){if(S.weights[m])S.weights[m]={...S.weights[m],...savedW[m]}}}
 // weights saved before the Aug-2026 backtest revision are reset once so the new swing defaults apply
@@ -455,37 +492,35 @@ function renderTop(){
 function renderRail(){
   const m=S.mode, w=S.weights[m], g=S.gates[m]; const sectors=Object.keys(D.sectors).sort();
   const wsum = PILLARS.reduce((a,p)=>a+(w[p]||0),0); const fsum=PILLARS.filter(p=>FUND_P.has(p)).reduce((a,p)=>a+(w[p]||0),0);
+  const fold=(id,title,btn,body)=>`<div class="sec fold ${S.railOpen[id]?'open':''}" data-fold="${id}"><h3><span>${title} <span class="tw">▶</span></span>${btn||''}</h3><div class="secbody">${body}</div></div>`;
   $('#rail').innerHTML = `
   <button class="iconbtn" id="drawerClose" style="display:none;margin-bottom:12px;width:100%;justify-content:center">Done — back to the list</button>
   <div class="sec"><h3>Find</h3>
     <div class="field"><input type="text" id="q" placeholder="Symbol or name" value="${esc(S.f.q)}"></div>
     <label class="tog"><input type="checkbox" id="stars" ${S.f.stars?'checked':''}> Watchlist only (★)</label>
   </div>
-  <div class="sec"><h3>Gates <button id="gatesToggle">${S.useGates?'disable':'enable'}</button></h3>
+  ${fold('filters','Filters','<button id="clearF">clear</button>',`
+    <div class="field"><label>Market cap</label><div class="seg" id="cap">${Object.keys(CAPBANDS).map(k=>`<button data-k="${k}" class="${S.f.cap===k?'on':''}">${k==='all'?'All':k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</div></div>
+    <div class="row"><div class="field"><label>Min score</label><input type="number" id="minScore" value="${S.f.minScore}" min="0" max="100"></div><div class="field"><label>Min data coverage</label><input type="number" id="minCov" value="${S.f.minCov}" min="0" max="1" step="0.1"></div></div>
+    <label class="tog"><input type="checkbox" id="noRed" ${S.f.noRed?'checked':''}> Exclude names with a red flag</label>
+    <label class="tog"><input type="checkbox" id="lenders" ${S.f.lenders?'checked':''}> Include banks / NBFCs / insurers</label>
+    <div class="field" style="margin-top:6px"><label>Sectors</label><div class="sectorlist" id="sectors">${sectors.map(s=>`<button data-s="${esc(s)}" class="${S.f.sectors.has(s)?'on':''}">${esc(s)} <span style="opacity:.6">${D.sectors[s].n}</span></button>`).join('')}</div></div>`)}
+  ${fold('gates','Gates',`<button id="gatesToggle">${S.useGates?'disable':'enable'}</button>`,`
     <div class="help" style="margin-bottom:6px">${gateText(m)}</div>
     <div class="row"><div class="field"><label>Min turnover ₹Cr/day</label><input type="number" id="g_turn" value="${g.turnover_min||0}" min="0" step="5"></div>
     ${g.atr_pct_min!=null?`<div class="field"><label>Min ATR %</label><input type="number" id="g_atr" value="${(g.atr_pct_min*100).toFixed(1)}" min="0" step="0.1"></div>`:''}</div>
     ${MODES[m].dir==='long'&&m!=='longterm'?`<div class="row"><div class="field"><label>Max % above 200 EMA</label><input type="number" id="g_ext" value="${g.max_ext!=null?(g.max_ext*100).toFixed(0):''}" placeholder="off" min="0" step="5"></div><div class="field"><label>Max dilution 3y %</label><input type="number" id="g_dil" value="${g.dilution_max!=null?(g.dilution_max*100).toFixed(0):''}" placeholder="off" min="0" step="5"></div></div>`:''}
     <label class="tog"><input type="checkbox" id="noRedGate" ${g.no_red?'checked':''}> Also require zero red flags</label>
-    <label class="tog"><input type="checkbox" id="hideGated" ${S.hideGated?'checked':''}> Hide names that fail a gate</label>
-  </div>
-  <div class="sec"><h3>Filters <button id="clearF">clear</button></h3>
-    <div class="field"><label>Market cap</label><div class="seg" id="cap">${Object.keys(CAPBANDS).map(k=>`<button data-k="${k}" class="${S.f.cap===k?'on':''}">${k==='all'?'All':k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</div></div>
-    <div class="row"><div class="field"><label>Min score</label><input type="number" id="minScore" value="${S.f.minScore}" min="0" max="100"></div><div class="field"><label>Min data coverage</label><input type="number" id="minCov" value="${S.f.minCov}" min="0" max="1" step="0.1"></div></div>
-    <label class="tog"><input type="checkbox" id="noRed" ${S.f.noRed?'checked':''}> Exclude names with a red flag</label>
-    <label class="tog"><input type="checkbox" id="lenders" ${S.f.lenders?'checked':''}> Include banks / NBFCs / insurers</label>
-    <div class="field" style="margin-top:6px"><label>Sectors</label><div class="sectorlist" id="sectors">${sectors.map(s=>`<button data-s="${esc(s)}" class="${S.f.sectors.has(s)?'on':''}">${esc(s)} <span style="opacity:.6">${D.sectors[s].n}</span></button>`).join('')}</div></div>
-  </div>
-  <div class="sec"><h3>Weights · ${esc(MODES[m].label)} <button id="resetW">reset</button></h3>
+    <label class="tog"><input type="checkbox" id="hideGated" ${S.hideGated?'checked':''}> Hide names that fail a gate</label>`)}
+  ${fold('weights',`Weights · ${esc(MODES[m].label)}`,'<button id="resetW">reset</button>',`
     ${PILLARS.map(p=>`<div class="w ${FUND_P.has(p)?'f':'t'}"><span>${PSHORT[p]}</span><input type="range" min="0" max="30" step="1" data-p="${p}" value="${w[p]||0}"><span class="num">${w[p]||0}</span></div>`).join('')}
     <div class="wsum"><span>Fundamental <b>${wsum?Math.round(fsum/wsum*100):0}%</b> · Technical <b>${wsum?Math.round((wsum-fsum)/wsum*100):0}%</b></span><span>Σ <b>${wsum}</b></span></div>
-    ${MODES[m].dir==='short'?`<div class="help" style="margin-top:6px">Short mode inverts every pillar except Ownership and Volume: weak fundamentals, rich valuation and a broken chart score high.</div>`:''}
-  </div>
-  <div class="sec"><h3>Sizing <span style="font-weight:400;letter-spacing:0;text-transform:none">rulebook</span></h3>
+    ${MODES[m].dir==='short'?`<div class="help" style="margin-top:6px">Short mode inverts every pillar except Ownership and Volume: weak fundamentals, rich valuation and a broken chart score high.</div>`:''}`)}
+  ${fold('sizing','Sizing','',`
     <div class="row"><div class="field"><label>Pot ₹</label><input type="number" id="sz_pot" value="${S.size.pot}" step="100000"></div><div class="field"><label>Risk / trade %</label><input type="number" id="sz_risk" value="${S.size.riskPct}" step="0.25" min="0.1"></div><div class="field"><label>Open-risk cap %</label><input type="number" id="sz_cap" value="${S.size.openRiskPct}" step="1" min="1"></div></div>
-    <div class="help">Risk per trade ${fmtRs(S.size.pot*S.size.riskPct/100)} → up to ${Math.floor(S.size.openRiskPct/S.size.riskPct)} positions open at once.</div>
-  </div>
-  <div class="sec"><h3>How to read</h3><div class="help">Each factor is a percentile inside this universe (valuation half-weighted against the sector). Pillars average their factors; a pillar with under half its data is blank and counts as neutral 50 in the composite — unknown is not good. Coverage shows how much of the weight was actually measured. Nothing here is advice — it is a ranking of where to spend research time.</div></div>`;
+    <div class="help">Risk per trade ${fmtRs(S.size.pot*S.size.riskPct/100)} → up to ${Math.floor(S.size.openRiskPct/S.size.riskPct)} positions open at once.</div>`)}
+  ${fold('help','How to read','',`<div class="help">Each factor is a percentile inside this universe (valuation half-weighted against the sector). Pillars average their factors; a pillar with under half its data is blank and counts as neutral 50 in the composite — unknown is not good. Coverage shows how much of the weight was actually measured. Nothing here is advice — it is a ranking of where to spend research time.</div>`)}`;
+  $('#rail').querySelectorAll('.sec.fold>h3').forEach(h=>h.onclick=e=>{if(e.target.tagName==='BUTTON')return;const d=h.parentElement;const id=d.dataset.fold;S.railOpen[id]=!S.railOpen[id];LS.set('railOpen',S.railOpen);d.classList.toggle('open')});
   $('#q').oninput=e=>{S.f.q=e.target.value;renderMain()};
   $('#drawerClose').onclick=()=>document.body.classList.remove('drawer');
   $('#stars').onchange=e=>{S.f.stars=e.target.checked;renderMain()};
@@ -562,15 +597,130 @@ function renderTable(){
     <div class="tile"><div class="lbl">Watchlist</div><div class="v">${S.stars.size}</div><div class="d">starred names</div></div>
   </div>`;
   const hasHist=!!(D.movers&&D.movers.prev_date);
-  $('#main').innerHTML = regimePanel() + exchangePanel() + moversPanel() + trackPanel(false) + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking <span class="cad">review every ${esc(MODES[m].review||'')}</span></h2><span class="sub">${esc(MODES[m].hold_note||'')} · click a row for the full page</span></div>
-  <div class="tblwrap"><table><thead><tr><th></th>${th('symbol','Stock')}<th>Sector</th>${th('mcap','Mcap ₹Cr','r')}${th('price','Price','r')}${th('score','Score')}${hasHist?th('delta','Δ1d'):''}<th title="Pillars: quality, growth, balance, cash, valuation, ownership | trend, momentum, RS, structure, volume">Pillars</th>${cols.map(c=>th(c[0],c[1],'r')).join('')}${th('flags','Flags')}<th>Gate</th></tr></thead>
-  <tbody>${shown.length?shown.map((r,i)=>{const s=r.st;const [src,k]=['',''];return `<tr data-s="${s.symbol}" class="${r.fails.length?'gated':''}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${S.stars.has(s.symbol)?'<span style="color:var(--warn)">★</span> ':''}${esc(s.symbol)} ${mqBadge(s)}</span><span class="nm" title="${esc(s.name)}">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${fmtIN(s.mcap_cr)}</td><td class="r num">${px(s.price)}</td><td><div class="scorebar"><div class="bar"><i style="width:${r.score.toFixed(0)}%;background:${barColor(r.score)}"></i></div><b>${r.score.toFixed(0)}</b></div></td>${hasHist?`<td class="r delta ${cls((s.hist||{})[m]?.d1)}">${isNum((s.hist||{})[m]?.d1)?((s.hist[m].d1>0?'+':'')+s.hist[m].d1.toFixed(1)):'–'}</td>`:''}<td>${strip(s)}</td>${cols.map(c=>{const [key,,f]=c;const [src,k]=key.split(':');const v=s[src][k];return `<td class="r num ${f==='spct'?cls(v):''}">${fmtCol(f,v)}</td>`}).join('')}<td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td></tr>`}).join(''):`<tr><td colspan="20" class="empty">Nothing matches. Loosen a filter or a gate.</td></tr>`}</tbody></table>
+  const R=D.regime||{}; const N=D.nse||{};
+  const ctxMini=[R.regime?`market ${R.regime.toLowerCase()}`:'',N.asof?`tape ${N.fresh?'fresh':'stale'}`:'',D.movers&&D.movers.prev_date?'movers':'' ,'track record'].filter(Boolean).join(' · ');
+  const ctx=`<div class="ctxfold ${S.ctxOpen?'open':''}" id="ctxfold"><button><span class="tw">▶</span> Market pulse &amp; what changed <span class="mini">${esc(ctxMini)}</span></button><div class="ctxbody">${regimePanel()+exchangePanel()+moversPanel()+trackPanel(false)}</div></div>`;
+  const simple=S.simpleCols;
+  const colT=`<span class="coltoggle"><button id="colS" class="${simple?'on':''}">Simple</button><button id="colF" class="${simple?'':'on'}">All columns</button></span>`;
+  $('#main').innerHTML = ctx + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking <span class="cad">review every ${esc(MODES[m].review||'')}</span>${colT}</h2><span class="sub">${esc(MODES[m].hold_note||'')} · click a row for the full page</span></div>
+  <div class="tblwrap"><table><thead><tr><th></th>${th('symbol','Stock')}<th>Sector</th>${th('mcap','Mcap ₹Cr','r')}${th('price','Price','r')}${th('score','Score')}${hasHist?th('delta','Δ1d'):''}<th title="Pillars: quality, growth, balance, cash, valuation, ownership | trend, momentum, RS, structure, volume">Pillars</th>${simple?'':cols.map(c=>th(c[0],c[1],'r')).join('')}${th('flags','Flags')}<th>Gate</th></tr></thead>
+  <tbody>${shown.length?shown.map((r,i)=>{const s=r.st;const [src,k]=['',''];return `<tr data-s="${s.symbol}" class="${r.fails.length?'gated':''}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${S.stars.has(s.symbol)?'<span style="color:var(--warn)">★</span> ':''}${esc(s.symbol)} ${mqBadge(s)}</span><span class="nm" title="${esc(s.name)}">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${fmtIN(s.mcap_cr)}</td><td class="r num">${px(s.price)}</td><td><div class="scorebar"><div class="bar"><i style="width:${r.score.toFixed(0)}%;background:${barColor(r.score)}"></i></div><b>${r.score.toFixed(0)}</b></div></td>${hasHist?`<td class="r delta ${cls((s.hist||{})[m]?.d1)}">${isNum((s.hist||{})[m]?.d1)?((s.hist[m].d1>0?'+':'')+s.hist[m].d1.toFixed(1)):'–'}</td>`:''}<td>${strip(s)}</td>${simple?'':cols.map(c=>{const [key,,f]=c;const [src,k]=key.split(':');const v=s[src][k];return `<td class="r num ${f==='spct'?cls(v):''}">${fmtCol(f,v)}</td>`}).join('')}<td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td></tr>`}).join(''):`<tr><td colspan="20" class="empty">Nothing matches. Loosen a filter or a gate.</td></tr>`}</tbody></table>
   ${rows.length>S.limit?`<div class="more"><button id="more">Show ${Math.min(150,rows.length-S.limit)} more (${rows.length-S.limit} remaining)</button></div>`:''}</div>`;
   $('#main').querySelectorAll('thead th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(S.sort.key===k)S.sort.dir*=-1;else S.sort={key:k,dir:k==='symbol'?1:-1};renderMain()});
   $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=()=>openStock(t.dataset.s));
   $('#main').querySelectorAll('.movers button[data-s], .xchg button[data-s]').forEach(b=>b.onclick=()=>openStock(b.dataset.s));
   const mb=$('#more'); if(mb)mb.onclick=()=>{S.limit+=150;renderMain()};
+  const cf=$('#ctxfold'); if(cf)cf.querySelector(':scope>button').onclick=()=>{S.ctxOpen=!S.ctxOpen;LS.set('ctxOpen',S.ctxOpen);cf.classList.toggle('open')};
+  const cS=$('#colS'),cF=$('#colF'); if(cS){cS.onclick=()=>{S.simpleCols=true;LS.set('simpleCols',true);renderMain()};cF.onclick=()=>{S.simpleCols=false;LS.set('simpleCols',false);renderMain()}}
   window.__rows=rows;
+}
+
+// ---------- analyst read: plain-language verdicts computed from the statements ----------
+function analystRead(st){
+  const F=st.F,T=st.T,fin=st.fin||{},A=fin.a||{},Qd=fin.q||{};
+  const adates=fin.a_dates||[],qdates=fin.q_dates||[];
+  const yoyA=arr=>!arr?[]:arr.map((v,i)=>isNum(v)&&isNum(arr[i+1])&&arr[i+1]>0?v/arr[i+1]-1:null);
+  const yb=dt=>String(+dt.slice(0,4)-1)+dt.slice(4);
+  const yoyQ=arr=>!arr?[]:arr.map((v,i)=>{const j=qdates.indexOf(yb(qdates[i]));const p=j>=0?arr[j]:null;return isNum(v)&&isNum(p)&&p>0?v/p-1:null});
+  const it=[]; const add=(s,t,x)=>{if(x)it.push({s,t,x})};
+  const g=yoyA(A.rev), q=yoyQ(Qd.rev), qp=yoyQ(Qd.pat), pg=yoyA(A.pat);
+  const gl=g.filter(isNum), ql=q.filter(isNum);
+  const seq=(g[0]!=null?[g[0],g[1],g[2]]:[]).filter(isNum);
+  const upyrs=(()=>{let n=0;for(const v of g){if(isNum(v)&&v>0.05)n++;else if(isNum(v))break}return n})();
+  const gtxt=seq.length?seq.slice().reverse().map(v=>spct(v,0)).join(' → '):null;
+  const accel=isNum(q[0])&&isNum(q[1])&&q[0]>q[1]&&(!isNum(q[2])||q[1]>=q[2]);
+  const decel=isNum(q[0])&&isNum(q[1])&&q[0]<q[1]&&q[1]<(isNum(q[2])?q[2]:Infinity);
+  // ---- genuineness checks
+  const cash3=F.cfo_pat_3y, oth=F.other_inc_pbt, dil=F.dilution_3y;
+  const rg0=isNum(A.recv?.[0])&&isNum(A.recv?.[1])&&A.recv[1]>0?A.recv[0]/A.recv[1]-1:null;
+  const recvHot=isNum(rg0)&&isNum(g[0])&&rg0>g[0]+0.15;
+  const issues=[],okrs=[];
+  if(st.lender){okrs.push('lender accounting — cash-conversion and other-income tests do not apply')}
+  else{
+    if(isNum(cash3))(cash3>=0.8?okrs:issues).push(cash3>=0.8?`cash backs it (CFO/PAT 3y ${x(cash3,1)})`:`cash conversion is weak (CFO/PAT 3y ${x(cash3,1)} — profits on paper until collected)`);
+    if(isNum(oth)&&oth>0.25)issues.push(`${pct(oth,0)} of pre-tax profit is other income, not the business`);
+    if(recvHot)issues.push(`receivables grew ${spct(rg0,0)} vs sales ${spct(g[0],0)} — billing is outrunning collecting`);
+    if(isNum(dil)&&dil>0.1)issues.push(`share count is up ${pct(dil,0)} in 3y — growth partly bought with your dilution`);
+  }
+  // ---- revenue verdict
+  let rs='ok',rt;
+  if(!gl.length&&!ql.length){rs='ok';rt='Not enough statement history to judge the growth trajectory — rely on the filed exchange numbers below.'}
+  else if(upyrs>=2&&isNum(q[0])&&q[0]>0.05&&!issues.length){rs='good';rt=`Genuine and sustained: ${gtxt?`revenue ${gtxt} over the last ${seq.length} years`:''}${isNum(q[0])?`, latest quarter ${spct(q[0],0)} YoY${accel?' and accelerating — each recent quarter better than the last (this is the pattern that re-rates stocks)':decel?' but slowing':''}`:''}. ${okrs.join('; ')||''}`}
+  else if(upyrs>=2&&issues.length){rs='warn';rt=`Growing (${gtxt}) but check the quality: ${issues.join('; ')}.`}
+  else if(isNum(g[0])&&g[0]>0.05&&(!isNum(g[1])||g[1]<=0.05)){rs='warn';rt=`One good year (${spct(g[0],0)}) after a flat or weak stretch${isNum(q[0])?`; latest quarter ${spct(q[0],0)} YoY${accel?' and accelerating — if the next one holds, this becomes a real turn':''}`:''}. One year is a data point, not a trajectory.${issues.length?' Also: '+issues.join('; ')+'.':''}`}
+  else if(isNum(g[0])&&g[0]<-0.05){rs='bad';rt=`Revenue is shrinking (${gtxt||spct(g[0],0)})${isNum(q[0])&&q[0]>0.05?`, though the latest quarter turned up ${spct(q[0],0)} — watch whether that repeats`:''}.`}
+  else{rt=`Roughly flat top line (${gtxt||'limited data'})${isNum(q[0])?`; latest quarter ${spct(q[0],0)} YoY${accel?', accelerating':''}`:''}.${issues.length?' '+issues.join('; ')+'.':''}`}
+  add(rs,'Revenue growth',rt);
+  // ---- profit quality
+  if(st.lender){
+    const ng=yoyA(A.nii);
+    add(isNum(ng[0])?(ng[0]>0.1?'good':ng[0]>0?'ok':'warn'):'ok','Lender profit',`${isNum(ng[0])?`Net interest income ${spct(ng[0],0)} YoY. `:''}${isNum(F.prov_pct_nii)?`Provisions eat ${pct(F.prov_pct_nii,0)} of NII${F.prov_pct_nii>0.25?' — heavy; asset quality is the story here':''}. `:''}${isNum(F.roe)?`ROE ${pct(F.roe,0)} on ${x(F.leverage,1)} leverage${isNum(F.roe)&&F.roe>0.15?' — earns its balance sheet':''}.`:''}`);
+  } else {
+    const marginUp=isNum(F.opm_delta)&&F.opm_delta>0.01, marginDn=isNum(F.opm_delta)&&F.opm_delta<-0.01;
+    let ps=isNum(pg[0])?(pg[0]>0.15&&marginUp?'good':pg[0]>0?'ok':'warn'):'ok';
+    let pt=`${isNum(pg[0])?`PAT ${spct(pg[0],0)} YoY`:'PAT trend unclear'}${isNum(qp[0])?`, latest quarter ${spct(qp[0],0)}`:''}. `;
+    if(marginUp&&isNum(g[0])&&g[0]>0.05)pt+=`Margins are RISING with revenue (OPM ${spct(F.opm_delta,1)} vs its 3y average) — pricing power plus scale, the best combination there is.`;
+    else if(marginUp)pt+=`Margins up ${spct(F.opm_delta,1)} vs the 3y norm but on soft sales — cost cutting, which has a floor.`;
+    else if(marginDn)pt+=`Margins are ${pct(Math.abs(F.opm_delta),1)} BELOW the 3y norm — growth is being bought${isNum(g[0])&&g[0]>0.1?' with discounts':''}, or costs are winning.`;
+    if(isNum(pg[0])&&isNum(g[0])&&pg[0]>g[0]+0.2&&!marginUp&&isNum(oth)&&oth>0.2)pt+=` Profit growing far faster than sales with ${pct(oth,0)} other income — the gap is not the business.`;
+    add(ps,'Profit quality',pt);
+  }
+  // ---- balance sheet
+  if(!st.lender){
+    const netCash=isNum(A.cash?.[0])&&isNum(A.debt?.[0])&&A.cash[0]>A.debt[0];
+    const debtUp=isNum(A.debt?.[0])&&isNum(A.debt?.[2])&&A.debt[2]>0&&A.debt[0]/A.debt[2]>1.5;
+    let bs=netCash?'good':isNum(F.de)&&F.de<0.5?'good':isNum(F.de)&&F.de<1.2?'ok':'warn';
+    let bt=netCash?`Net cash — the balance sheet cannot kill this company. `:`D/E ${x(F.de,2)}${isNum(F.net_debt_ebitda)?`, net debt ${x(F.net_debt_ebitda,1)} EBITDA`:''}${isNum(F.int_cover)?`, interest covered ${x(F.int_cover,1)}`:''}. `;
+    if(debtUp){bt+=`Debt is up ${spct(A.debt[0]/A.debt[2]-1,0)} in two years — fine if it is building capacity (gross block ${isNum(F.gross_block_g1)?spct(F.gross_block_g1,0):'–'} this year), a spiral if margins keep falling.`;if(bs==='good')bs='ok'}
+    if(isNum(F.int_cover)&&F.int_cover<2){bt+=` Interest cover under 2 — the lenders are first in line.`;bs='bad'}
+    add(bs,'Balance sheet',bt);
+  }
+  // ---- ownership
+  {
+    const pr=F.promoter;
+    let os=isNum(pr)?(pr>=0.5?'good':pr>=0.25?'ok':'warn'):'ok';
+    if(isNum(dil)&&dil>0.1&&os==='good')os='ok';
+    let ot=isNum(pr)?`Promoters hold ${pct(pr,0)}${pr<0.25?' — low skin in the game; ask why before anything else':pr>=0.6?' — heavily committed':''}. `:'';
+    if(isNum(dil))ot+=dil>0.1?`Dilution ${pct(dil,0)} in 3y — your slice is shrinking. `:dil<-0.02?`Share count is FALLING (buybacks) — your slice grows on its own. `:'';
+    if(isNum(F.institutions)&&F.institutions>0.15)ot+=`Institutions own ${pct(F.institutions,0)}.`;
+    if(ot)add(os,'Ownership',ot);
+  }
+  // ---- valuation
+  {
+    const pe=F.pe,spe=sectorMedian(st.sector,'pe');
+    let vs='ok',vt='';
+    if(isNum(pe)&&pe>0){
+      vt=`You are paying ${x(pe,0)} earnings${isNum(spe)?` vs ${x(spe,0)} for the sector`:''}`;
+      const rich=isNum(spe)?pe>spe*1.5:pe>50, cheapo=isNum(spe)?pe<spe*0.6:pe<12;
+      if(rich){vs='warn';vt+=` — priced for a future that has to arrive${isNum(F.peg)&&F.peg<1.5?`, though PEG ${F.peg.toFixed(1)} says growth is carrying it`:''}.`}
+      else if(cheapo){vt+=` — cheap on paper; cheapness this size usually has a reason (check the flags and the growth verdict above).`;vs=it.some(z=>z.s==='good'&&z.t==='Revenue growth')?'good':'ok'}
+      else vt+=' — a fair price, neither the bargain nor the trap.';
+      if(isNum(T.from_52h)&&T.from_52h<-0.4)vt+=` The stock is ${pct(Math.abs(T.from_52h),0)} below its 52w high — the market has already voted; your edge is only real if the numbers above are turning.`;
+    } else if(isNum(pe)){vs='warn';vt='No meaningful P/E — the company is loss-making on a TTM basis; this is a turnaround bet, not a valuation call.'}
+    if(vt)add(vs,'Valuation',vt);
+  }
+  // ---- tape
+  {
+    const bull=T.ema_stack===1||T.ema_stack===true, mq=st.mq||{};
+    let ts=bull?'good':isNum(T.vs_ema200)&&T.vs_ema200>0?'ok':'warn';
+    let tt=`${bull?'Uptrend (bullish EMA stack)':isNum(T.vs_ema200)&&T.vs_ema200>0?'Above the 200-day average':'Below the 200-day average — fighting the tide'}${isNum(T.ret_12m)?`, ${spct(T.ret_12m,0)} in 12m`:''}${isNum(T.rs_6m)?`, ${T.rs_6m>0?'stronger':'weaker'} than the market over 6m`:''}. `;
+    if(isNum(mq.dp)&&isNum(mq.dp_med))tt+=mq.dp>mq.dp_med+8?`Delivery ${mq.dp.toFixed(0)}% vs ${mq.dp_med.toFixed(0)}% normal — buyers are taking the shares home, not day-trading them.`:mq.dp<mq.dp_med-8?`Delivery ${mq.dp.toFixed(0)}% vs ${mq.dp_med.toFixed(0)}% normal — the move is churn, not accumulation.`:``;
+    add(ts,'Price & tape',tt);
+  }
+  // ---- lede
+  const byT=Object.fromEntries(it.map(z=>[z.t,z.s]));
+  const gw=byT['Revenue growth'],pw=byT['Profit quality']||byT['Lender profit'],vw=byT['Valuation'],tw=byT['Price & tape'];
+  const phrase=[
+    gw==='good'?'a genuinely growing business':gw==='bad'?'a shrinking business':gw==='warn'?'a business whose growth needs checking':'a business with a flat top line',
+    pw==='good'?'earning real, improving profits':pw==='warn'||pw==='bad'?'with profit quality to question':'with steady profits',
+    vw==='warn'?'at a demanding price':vw==='good'?'at an undemanding price':'at a fair price',
+    tw==='good'?'in an uptrend':tw==='warn'?'in a downtrend':'in a sideways tape'].join(', ');
+  const worst=['bad','warn'].find(s=>it.some(z=>z.s===s));
+  const lede=`In one line: ${phrase}. ${worst?`Biggest thing to verify before acting: ${it.find(z=>z.s===worst).t.toLowerCase()}.`:'Nothing in the statements argues with the score.'}`;
+  // ---- per-table lines for the statement cards
+  const revA=gl.length?`<span class="vchip ${rs}">${rs==='good'?'genuine':rs==='bad'?'declining':rs==='warn'?'verify':'flat'}</span> ${esc(rt)}`:null;
+  const qLine=ql.length?`<span class="vchip ${accel?'good':decel?'warn':'ok'}">${accel?'accelerating':decel?'slowing':'steady'}</span> Quarterly YoY ${q.slice(0,4).filter(isNum).slice().reverse().map(v=>spct(v,0)).join(' → ')}${isNum(qp[0])?`; PAT ${spct(qp[0],0)} latest`:''}. ${accel?'Two or more accelerating quarters is what re-rates a stock — this one qualifies.':decel?'Momentum in the numbers is fading; the market usually notices within a quarter or two.':'No acceleration yet — nothing here forces the market to re-price.'}`:null;
+  return {lede,items:it,revA,qLine};
 }
 
 // ---------- render: stock page ----------
@@ -595,6 +745,11 @@ function renderStock(){
     ${st.summary?`<div class="desc">${esc(st.summary)}${st.website?` <a href="${esc(st.website)}" target="_blank" rel="noopener">site ↗</a>`:''}</div>`:''}
   </div>
   <div class="scores3">${Object.keys(MODES).map(k=>`<div class="sc"><div class="lbl">${esc(MODES[k].label)}</div><div class="v">${isNum(sc[k].score)?sc[k].score.toFixed(0):'–'}</div><div class="m"><i style="width:${isNum(sc[k].score)?sc[k].score.toFixed(0):0}%;background:${isNum(sc[k].score)?barColor(sc[k].score):'transparent'}"></i></div><div class="g">${fails[k].length?'✗ '+esc(fails[k].join(', ')):'✓ gates'} · cov ${(sc[k].cov*100).toFixed(0)}%${isNum((st.hist||{})[k]?.d1)?` · <span class="${cls(st.hist[k].d1)}">${st.hist[k].d1>0?'+':''}${st.hist[k].d1.toFixed(1)} 1d</span>`:''}</div></div>`).join('')}</div></div>`;
+  // ---- analyst read
+  const AR=analystRead(st);
+  html+=`<div class="card aread"><h3>Analyst read <span>generated from the statements, filings and tape of this build — verify, then decide</span></h3>
+    <p class="lede">${esc(AR.lede)}</p>
+    <div class="items">${AR.items.map(z=>`<div class="it"><span class="vchip ${z.s}">${z.s==='good'?'✓ good':z.s==='ok'?'okay':z.s==='warn'?'verify':'problem'}</span><span><b>${esc(z.t)}.</b> ${esc(z.x)}</span></div>`).join('')}</div></div>`;
   // ---- pillars + flags + plan
   html+=`<div class="grid2">
     <div class="card"><h3>Pillars <span>percentile in universe · click to expand</span></h3><div class="pillars">${PILLARS.map(p=>{const v=st.pillars[p];const cov=st.pillar_cov[p];return `<div class="pl ${isNum(v)?'':'na'}" data-p="${p}"><span class="n">${PLABEL[p]}<span class="cov">${Math.round(cov*100)}%</span></span><div class="bar"><i style="width:${isNum(v)?v.toFixed(0):0}%;background:${isNum(v)?barColor(v):'transparent'}"></i></div><span class="v">${isNum(v)?v.toFixed(0):'n/a'}</span></div><div class="fx" id="fx-${p}">${factorRows(st,p)}</div>`}).join('')}</div></div>
@@ -652,8 +807,8 @@ function renderStock(){
     ${st.lender?kv('NII growth 1y',spct(F.nii_g1))+kv('Provisions / NII',pct(F.prov_pct_nii))+kv('Assets / equity',x(F.leverage)):''}
   </div></div></div>`;
   // ---- financial statements
-  html+=`<div class="grid2"><div class="card"><h3>Annual <span>₹ Cr · FY ending ${fin.a_dates[0]||'–'}</span></h3><div class="finwrap">${finTable(fin,'a',st)}</div></div>
-  <div class="card"><h3>Quarterly <span>₹ Cr · latest ${fin.q_dates[0]||'–'}</span></h3><div class="finwrap">${finTable(fin,'q',st)}</div>
+  html+=`<div class="grid2"><div class="card"><h3>Annual <span>₹ Cr · FY ending ${fin.a_dates[0]||'–'}</span></h3><div class="finwrap">${finTable(fin,'a',st)}</div>${AR.revA?`<div class="finread"><b>The read:</b> ${AR.revA}</div>`:''}</div>
+  <div class="card"><h3>Quarterly <span>₹ Cr · latest ${fin.q_dates[0]||'–'}</span></h3><div class="finwrap">${finTable(fin,'q',st)}</div>${AR.qLine?`<div class="finread"><b>The read:</b> ${AR.qLine}</div>`:''}
   <h3 style="margin-top:14px">Sector context <span>${esc(st.sector)} · ${D.sectors[st.sector]?.n||0} names</span></h3><div class="secctx">${['ret_3m','ret_6m','vs_ema200','pct_above_200','pe','sales_g3','roce'].map(k=>{const v=secm(k);const lab={ret_3m:'Median 3m',ret_6m:'Median 6m',vs_ema200:'Median vs 200E',pct_above_200:'Above 200E',pe:'Median P/E',sales_g3:'Median sales 3y',roce:'Median ROCE'}[k];const f=k==='pe'?x(v):k==='pct_above_200'?pct(v,0):spct(v);return `<div><div class="k">${lab}</div><div class="v ${['pe','pct_above_200'].includes(k)?'':cls(v)}">${f}</div></div>`}).join('')}</div></div></div>`;
   $('#main').innerHTML=html;
   $('#back').onclick=closeStock;
@@ -826,9 +981,10 @@ function renderBook(){ const m=S.mode; const elig=eligibleRows(); const rank=new
 function renderRadar(){ if(!RD||!RD.rows){$('#main').innerHTML='<div class="card"><h3>Radar</h3><div class="help">No radar data in this build — it comes from the exchange-data machine on the desk Mac.</div></div>';return}
   const inUniv = new Set(D.stocks.map(s=>s.symbol));
   const O = RD.odds||{};
+  const isShell = r=>{const why=[]; if(!(r.price>=10))why.push('penny'); if(!((r.turn_l||0)>=50))why.push('thin'); if((r.flags||[]).includes('SURVEILLANCE'))why.push('surveillance'); return why};
   const sc = s=>`<span class="verdict ${s>=4?'hold':''}" style="${s>=4?'':'background:var(--chip);color:var(--ink)'}">${s}</span>`;
-  const row=(r,i)=>{const click=inUniv.has(r.symbol);
-    return `<tr ${click?`data-s="${r.symbol}"`:''} style="${click?'':'cursor:default'}"><td class="rank">${i+1}</td><td>${sc(r.score)}</td>
+  const row=(r,i)=>{const click=inUniv.has(r.symbol); const sh=isShell(r);
+    return `<tr ${click?`data-s="${r.symbol}"`:''} class="${sh.length?'shellrow':''}" style="${click?'':'cursor:default'}"><td class="rank">${i+1}</td><td>${sc(r.score)}${sh.length?` <span class="shellchip" title="Fails the real-business filter (${sh.join(', ')}). Backtested Sep-21→Aug-26: names failing this filter returned −31% as a portfolio with an −88% drawdown; the filtered list made +67%.">${sh[0]}</span>`:''}</td>
     <td><div class="symcell"><span class="sym">${esc(r.symbol)}${(r.flags||[]).includes('SURVEILLANCE')?' <span class="chipflag" style="color:var(--down);font-size:10px;font-weight:700">⚠ SURVEILLANCE</span>':''}</span><span class="nm" title="${esc(r.name||'')}">${esc(r.name||'')}</span></div></td>
     <td style="font-size:11px;color:var(--muted)">${esc(r.why||'')}</td>
     <td>${r.sector?`<span class="sectag">${esc(r.sector)}${r.heat?` <b class="${r.heat==='hot'?'pos':r.heat==='cold'?'neg':''}">${r.heat}</b>`:''}</span>`:'–'}</td>
@@ -838,7 +994,13 @@ function renderRadar(){ if(!RD||!RD.rows){$('#main').innerHTML='<div class="card
     <td class="r num ${cls(r.prom_chg)}">${isNum(r.prom_chg)?(r.prom_chg>0?'+':'')+r.prom_chg.toFixed(1)+'pp':'–'}</td>
     <td class="r num">${fmtIN(r.turn_l)}</td>
     <td style="font-size:10.5px;color:var(--muted)">${(r.tags||[]).map(x=>`<span class="mqb ${x==='late'?'hollow':'backed'}" title="${x==='deep'?'>50% below its high — winners were the deeper wrecks':x==='quiet'?'thin turnover, hasn\'t run 40%+ in a year — winners were the unwatched ones':'already up 60%+ in 12m — flagged losers had run more than winners'}">${x}</span>`).join(' ')} ${(r.flags||[]).filter(f=>f!=='SURVEILLANCE').join(' ')}</td></tr>`};
-  $('#main').innerHTML=`<div class="tblhead"><h2>Multibagger Radar <span class="cad">as of ${esc(RD.asof||'')}</span></h2><span class="sub">every NSE name ≥ ₹50 Cr scored on the validated precursors · ${RD.n_listed} names at score ≥ 2 of ${fmtIN(RD.n_universe)} scanned</span></div>
+  const lead=S.radarView==='leaders';
+  let rowsAll=RD.rows.slice();
+  if(lead){ rowsAll=rowsAll.filter(r=>r.score>=3&&isNum(r.ret12)&&r.ret12>=0.6&&!isShell(r).length).sort((a,b)=>b.ret12-a.ret12) }
+  else { rowsAll.sort((a,b)=>(isShell(a).length?1:0)-(isShell(b).length?1:0)||b.score-a.score||((b.volreg||0)-(a.volreg||0))) }
+  $('#main').innerHTML=`<div class="tblhead"><h2>Multibagger Radar <span class="cad">as of ${esc(RD.asof||'')}</span>
+    <span class="coltoggle"><button id="rvC" class="${lead?'':'on'}">Crushed — the lottery</button><button id="rvL" class="${lead?'on':''}">Leaders — the compounders</button></span></h2>
+    <span class="sub">${lead?`score ≥ 3 names already up 60%+ in 12 months, real-business filter applied — the basket that compounded +27.8%/yr in the 5-year backtest. Ride trends, don't expect doubles.`:`every NSE name ≥ ₹50 Cr scored on the validated precursors · ${RD.n_listed} names at score ≥ 2 of ${fmtIN(RD.n_universe)} scanned · real names first, shell-risk names greyed (5y backtest: filtered +67%, rejects −31%)`}</span></div>
   ${RD.context?`<div class="card" style="margin-bottom:14px;border-left:4px solid ${RD.context==='CRUSHED'?'var(--up)':RD.context==='MODERATE'?'var(--warn)':'var(--down)'}"><div style="display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;font-size:12.5px">
     <span style="font-size:15px;font-weight:700">Market context: ${esc(RD.context)}</span>
     <span>median stock is <b class="${cls(RD.mkt_dd)}">${spct(RD.mkt_dd)}</b> from its all-time high</span>
@@ -849,11 +1011,13 @@ function renderRadar(){ if(!RD||!RD.rows){$('#main').innerHTML='<div class="card
     <p style="margin:6px 0 2px"><strong>The rules that keep this survivable:</strong> this is a <em>basket</em> instrument — 8–10 names, ≤ 10% of the pot in total, sized so any one going −80% costs ~1% of capital. Never one conviction bet. <span style="color:var(--down);font-weight:600">⚠ SURVEILLANCE</span> names get no size recommendation at all. The score amplifies the market: in 2018-type years this list loses more than the index — the sleeve cap is the protection, not timing.</p>
   </div></div>
   <div class="tblwrap"><table><thead><tr><th></th><th>Score</th><th>Stock</th><th>Why</th><th>Sector</th><th class="r">Mcap ₹Cr</th><th class="r">Price</th><th class="r">6m</th><th class="r">vs ATH</th><th class="r">Vol regime</th><th class="r">Promoter Δ2q</th><th class="r">Turnover ₹L</th><th>Notes</th></tr></thead>
-  <tbody>${RD.rows.slice(0,S.radarLimit||150).map(row).join('')}</tbody></table>
-  ${RD.rows.length>(S.radarLimit||150)?`<div class="more"><button id="rmore">Show more (${RD.rows.length-(S.radarLimit||150)} remaining)</button></div>`:''}</div>
+  <tbody>${rowsAll.length?rowsAll.slice(0,S.radarLimit||150).map(row).join(''):'<tr><td colspan="13" class="empty">Nothing qualifies right now.</td></tr>'}</tbody></table>
+  ${rowsAll.length>(S.radarLimit||150)?`<div class="more"><button id="rmore">Show more (${rowsAll.length-(S.radarLimit||150)} remaining)</button></div>`:''}</div>
   <div class="help" style="margin-top:10px">Names inside the main ₹1,000 Cr universe are clickable for the full page; smaller names are radar-only (research them before touching them). Tie-breakers (from the winners-vs-losers study inside the flagged set): prefer <b>deep</b> and <b>quiet</b>, avoid <b>late</b>; cyclical sectors (tech, industrials, materials) doubled at ~2× the rate of defensives, financials and energy. Score parts: fallen angel (≥60% below ATH) · volume regime shift · small (&lt;₹500 Cr) · 6m momentum · promoter adding · hot sector (top-tercile 3m sector return) — minus one for promoter selling or a cold sector. Every part era-consistent in the 2017–2025 study. Survivorship caveat: delisted names are absent from the history behind these odds.</div>`;
   $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=()=>openStock(t.dataset.s));
   const rm=$('#rmore'); if(rm)rm.onclick=()=>{S.radarLimit=(S.radarLimit||150)+150;renderMain()};
+  $('#rvC').onclick=()=>{S.radarView='crushed';S.radarLimit=150;renderMain()};
+  $('#rvL').onclick=()=>{S.radarView='leaders';S.radarLimit=150;renderMain()};
 }
 // ---------- backtest ----------
 function renderBacktest(){ if(!BT||!BT.variants){$('#main').innerHTML=trackPanel(true)+'<div class="card"><h3>Backtest</h3><div class="help">No backtest results were embedded in this build. Run backtest.py and rebuild.</div></div>';return}
