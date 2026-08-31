@@ -102,6 +102,7 @@ volreg = (TURN.rolling(63).mean().iloc[-1] / TURN.rolling(252, min_periods=150).
 last = C.ffill().iloc[-1]
 ret6 = C.ffill().iloc[-1] / C.ffill().iloc[-126] - 1 if len(C) > 126 else pd.Series(dtype=float)
 ret3 = C.ffill().iloc[-1] / C.ffill().iloc[-63] - 1 if len(C) > 63 else pd.Series(dtype=float)
+ret12 = C.ffill().iloc[-1] / C.ffill().iloc[-252] - 1 if len(C) > 252 else pd.Series(dtype=float)
 ath_now = C.max()
 if ATH_PRIOR:
     ath_now = pd.Series({s: max(ath_now.get(s, np.nan), ATH_PRIOR.get(s, np.nan)) if np.isfinite(ATH_PRIOR.get(s, np.nan)) else ath_now.get(s, np.nan) for s in C.columns})
@@ -184,6 +185,12 @@ for s in C.columns:
     flags = []
     if s in asm_syms: flags.append("SURVEILLANCE")
     if turn20.get(s, 0) < 50: flags.append("thin")
+    # tie-breakers from the winners-vs-losers study (inside the flagged set): deeper, quieter, not already run
+    r12 = ret12.get(s) if len(ret12) else None
+    tags = []
+    if isinstance(dd, float) and np.isfinite(dd) and dd <= -0.5: tags.append("deep")
+    if turn20.get(s, 0) < 100 and (r12 is None or not np.isfinite(r12) or r12 < 0.4): tags.append("quiet")
+    if isinstance(r12, float) and np.isfinite(r12) and r12 >= 0.6: tags.append("late")
     sec = smap.get(s)
     rows.append({"symbol": s, "name": (names.get(s) or "")[:40], "score": score, "why": ", ".join(parts),
                  "mcap_cr": round(mc), "price": round(float(last.get(s)), 1), "turn_l": round(float(turn20.get(s, 0))),
@@ -193,7 +200,8 @@ for s in C.columns:
                  "prom_chg": round(pc, 2) if pc is not None else None,
                  "sector": sec if isinstance(sec, str) else None,
                  "heat": sec_heat.get(sec) if isinstance(sec, str) else None,
-                 "flags": flags})
+                 "flags": flags, "tags": tags,
+                 "ret12": round(float(r12), 3) if isinstance(r12, float) and np.isfinite(r12) else None})
 rows.sort(key=lambda r: (-r["score"], -(r["volreg"] or 0)))
 # market context: median distance-from-ATH across the eligible universe (the study's strongest payoff conditioner:
 # score>=3 wins 37% when the market median is >35% off highs, 21% at 22-35%, 11% when the market is near highs)
