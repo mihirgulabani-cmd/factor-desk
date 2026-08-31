@@ -927,6 +927,18 @@ out = {"built": datetime.now().strftime("%Y-%m-%d %H:%M"), "asof": ASOF, "data_b
        "n": len(stocks), "index": index_ret, "sectors": sectors, "regime": regime, "movers": movers, "track": track, "nse": nse_meta, "modes": MODES, "invert_for_short": INVERT_FOR_SHORT, "pillars": PILLARS, "factors": factor_meta, "stocks": stocks}
 with open(os.path.join(OUT, "model_output.json"), "w") as f:
     json.dump(out, f, separators=(",", ":"))
+
+# On the cloud runner (no exchange-data machine), compute the Multibagger Radar from the committed
+# radar_inputs/ bundle + a Yahoo price pull, so the website's Radar tab refreshes daily too. Non-fatal.
+if os.environ.get("GITHUB_ACTIONS"):
+    _here = os.path.dirname(os.path.abspath(__file__))
+    if os.path.isdir(os.path.join(_here, "radar_inputs")) and os.path.exists(os.path.join(_here, "mb_radar.py")):
+        import subprocess
+        try:
+            log("cloud radar: computing from radar_inputs bundle")
+            subprocess.run([sys.executable, os.path.join(_here, "mb_radar.py"), "--cloud", "--data", OUT], check=True, timeout=1500)
+        except Exception as e:
+            log("cloud radar skipped:", str(e)[:120])
 log(f"wrote model_output.json ({os.path.getsize(os.path.join(OUT, 'model_output.json'))/1e6:.1f} MB)")
 
 # CSV audit trail + ranked lists

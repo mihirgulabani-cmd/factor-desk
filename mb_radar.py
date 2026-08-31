@@ -20,15 +20,48 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--data", default=os.path.expanduser("~/screener_data"))
 ap.add_argument("--refresh", action="store_true", help="Yahoo tail top-up of the price shards first (Mac only)")
 ap.add_argument("--min-mcap", type=float, default=50.0)
+ap.add_argument("--cloud", action="store_true", help="no shards: pull ~14 months of prices from Yahoo, read slow-changing inputs from radar_inputs/")
 a = ap.parse_args()
 MB = os.path.join(a.data, "mb"); NSE_D = os.path.join(a.data, "nse")
+HERE = os.path.dirname(os.path.abspath(__file__))
+INP = next((d for d in (os.path.join(a.data, "radar_inputs"), os.path.join(HERE, "radar_inputs")) if os.path.isdir(d)), None)
 
 def log(*x): print(datetime.now().strftime("%H:%M:%S"), *x, flush=True)
 
 shard_files = sorted(glob.glob(os.path.join(MB, "prices10y_shard*.csv.gz")))
-if not shard_files: sys.exit("no price shards — run mb_pull.py first")
+if not shard_files and not a.cloud: sys.exit("no price shards — run mb_pull.py first (or use --cloud with a radar_inputs bundle)")
+ATH_PRIOR = None
+if a.cloud:
+    if not INP: sys.exit("--cloud needs a radar_inputs/ bundle (made by a normal desk run of mb_radar.py)")
+    import yfinance as yf
+    from datetime import timedelta
+    athf = pd.read_csv(os.path.join(INP, "ath.csv"))
+    ATH_PRIOR = dict(zip(athf["symbol"].astype(str), pd.to_numeric(athf["ath"], errors="coerce")))
+    syms = sorted(ATH_PRIOR)
+    start = (datetime.now() - timedelta(days=430)).strftime("%Y-%m-%d")
+    frames = []
+    log(f"cloud mode: pulling ~14 months for {len(syms)} symbols")
+    B = 80
+    if os.environ.get("RADAR_FAKE_PULL") and shard_files:   # sandbox test of the cloud path without network
+        _px = pd.concat([pd.read_csv(f) for f in shard_files]); _px["date"] = pd.to_datetime(_px["date"])
+        frames = [_px[_px["date"] >= pd.Timestamp(start)][["symbol", "date", "close", "volume"]]]; syms = []
+    for i in range(0, len(syms), B):
+        tick = [s + ".NS" for s in syms[i:i+B]]
+        try: d = yf.download(tick, start=start, group_by="ticker", auto_adjust=False, threads=True, progress=False, timeout=60)
+        except Exception as e: log("batch fail", str(e)[:50]); continue
+        for tk in tick:
+            try: sub = d[tk] if len(tick) > 1 else d
+            except KeyError: continue
+            if isinstance(sub.columns, pd.MultiIndex): sub.columns = sub.columns.get_level_values(-1)
+            sub = sub.loc[:, ~sub.columns.duplicated()].dropna(subset=["Close"])
+            if sub.empty: continue
+            frames.append(pd.DataFrame({"symbol": tk[:-3], "date": sub.index.strftime("%Y-%m-%d"),
+                                        "close": sub["Close"].values, "volume": sub["Volume"].values}))
+    if not frames: sys.exit("cloud radar: Yahoo returned nothing")
+    px = pd.concat(frames)
+    shard_files = []
 
-if a.refresh:
+if a.refresh and not a.cloud:
     import yfinance as yf
     from datetime import timedelta
     for f in shard_files:
@@ -54,8 +87,9 @@ if a.refresh:
         allp.to_csv(f, index=False, compression="gzip")
         log(f"refreshed {os.path.basename(f)} → through {allp['date'].max()}")
 
-log("loading shards")
-px = pd.concat([pd.read_csv(f) for f in shard_files])
+if not a.cloud:
+    log("loading shards")
+    px = pd.concat([pd.read_csv(f) for f in shard_files])
 px["date"] = pd.to_datetime(px["date"])
 C = px.pivot_table(index="date", columns="symbol", values="close")
 V = px.pivot_table(index="date", columns="symbol", values="volume")
@@ -68,22 +102,29 @@ volreg = (TURN.rolling(63).mean().iloc[-1] / TURN.rolling(252, min_periods=150).
 last = C.ffill().iloc[-1]
 ret6 = C.ffill().iloc[-1] / C.ffill().iloc[-126] - 1 if len(C) > 126 else pd.Series(dtype=float)
 ret3 = C.ffill().iloc[-1] / C.ffill().iloc[-63] - 1 if len(C) > 63 else pd.Series(dtype=float)
-dd_ath = last / C.max() - 1
-bars = C.notna().sum()
+ath_now = C.max()
+if ATH_PRIOR:
+    ath_now = pd.Series({s: max(ath_now.get(s, np.nan), ATH_PRIOR.get(s, np.nan)) if np.isfinite(ATH_PRIOR.get(s, np.nan)) else ath_now.get(s, np.nan) for s in C.columns})
+dd_ath = last / ath_now - 1
+bars = C.notna().sum() if not ATH_PRIOR else pd.Series({s: 300 for s in C.columns})  # history proven by the bundle
 
-mcapf = pd.read_csv(os.path.join(a.data, "mcap.csv"))[["symbol", "shares"]]
+def inp(name, *fallbacks):
+    for p_ in ([os.path.join(INP, name)] if INP else []) + list(fallbacks):
+        if p_ and os.path.exists(p_): return p_
+    return None
+mcapf = pd.read_csv(inp("mcap.csv", os.path.join(a.data, "mcap.csv")))[["symbol", "shares"]]
 sh = dict(zip(mcapf["symbol"], pd.to_numeric(mcapf["shares"], errors="coerce")))
 mcap = pd.Series({s: last.get(s, np.nan) * sh.get(s, np.nan) / 1e7 for s in C.columns})
 
 names = {}
-up = os.path.join(a.data, "universe_all.csv")
-if os.path.exists(up):
+up = inp("universe_all.csv", os.path.join(a.data, "universe_all.csv"))
+if up and os.path.exists(up):
     u = pd.read_csv(up); names = dict(zip(u["symbol"].astype(str), u["name"].astype(str)))
 
 # promoter trend (latest vs 2 quarters earlier)
 prom_chg, prom_now = {}, {}
-sp = os.path.join(MB, "shareholding_panel.csv.gz")
-if os.path.exists(sp):
+sp = inp("shareholding_panel.csv.gz", os.path.join(MB, "shareholding_panel.csv.gz"))
+if sp and os.path.exists(sp):
     S = pd.read_csv(sp, parse_dates=["date_dt"]).dropna(subset=["date_dt"]).sort_values(["symbol", "date_dt"])
     for sym, g in S.groupby("symbol"):
         if len(g) >= 3 and pd.notna(g.iloc[-1]["promoter_pct"]) and pd.notna(g.iloc[-3]["promoter_pct"]):
@@ -92,8 +133,8 @@ if os.path.exists(sp):
 
 # surveillance lists
 asm_syms = set()
-ap_ = os.path.join(NSE_D, "asm.json")
-if os.path.exists(ap_):
+ap_ = inp("asm.json", os.path.join(NSE_D, "asm.json"))
+if ap_ and os.path.exists(ap_):
     def harvest(x):
         if isinstance(x, dict):
             if x.get("symbol"): asm_syms.add(str(x["symbol"]))
@@ -107,8 +148,8 @@ if os.path.exists(ap_):
 
 # sector map + heat
 smap = {}
-imp = os.path.join(MB, "industry_map.csv")
-if os.path.exists(imp):
+imp = inp("industry_map.csv", os.path.join(MB, "industry_map.csv"))
+if imp and os.path.exists(imp):
     im = pd.read_csv(imp)
     smap = dict(zip(im["symbol"].astype(str), im["sector"]))
 sec_heat = {}
@@ -168,3 +209,12 @@ out = {"asof": str(ASOF.date()), "built": datetime.now().strftime("%Y-%m-%d %H:%
 p = os.path.join(a.data, "radar.json")
 json.dump(out, open(p, "w"))
 log(f"radar: {len(rows)} names score>=2 ({out['counts']}) → {p}")
+if not a.cloud:
+    import shutil
+    bdir = os.path.join(a.data, "radar_inputs"); os.makedirs(bdir, exist_ok=True)
+    pd.DataFrame({"symbol": ath_now.index, "ath": ath_now.values}).dropna().to_csv(os.path.join(bdir, "ath.csv"), index=False)
+    for src_p, nm in ((os.path.join(a.data, "mcap.csv"), "mcap.csv"), (os.path.join(MB, "shareholding_panel.csv.gz"), "shareholding_panel.csv.gz"),
+                      (os.path.join(NSE_D, "asm.json"), "asm.json"), (os.path.join(MB, "industry_map.csv"), "industry_map.csv"),
+                      (os.path.join(a.data, "universe_all.csv"), "universe_all.csv")):
+        if os.path.exists(src_p): shutil.copy(src_p, os.path.join(bdir, nm))
+    log(f"radar_inputs bundle refreshed → {bdir}  (copy this folder into the GitHub repo so the website computes the radar daily)")
