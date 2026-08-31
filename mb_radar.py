@@ -30,13 +30,14 @@ def log(*x): print(datetime.now().strftime("%H:%M:%S"), *x, flush=True)
 
 shard_files = sorted(glob.glob(os.path.join(MB, "prices10y_shard*.csv.gz")))
 if not shard_files and not a.cloud: sys.exit("no price shards — run mb_pull.py first (or use --cloud with a radar_inputs bundle)")
-ATH_PRIOR = None
+ATH_PRIOR = None; ATH_ASOF = None
 if a.cloud:
     if not INP: sys.exit("--cloud needs a radar_inputs/ bundle (made by a normal desk run of mb_radar.py)")
     import yfinance as yf
     from datetime import timedelta
     athf = pd.read_csv(os.path.join(INP, "ath.csv"))
     ATH_PRIOR = dict(zip(athf["symbol"].astype(str), pd.to_numeric(athf["ath"], errors="coerce")))
+    ATH_ASOF = pd.Timestamp(athf["asof"].iloc[0]) if "asof" in athf.columns else None   # bundle date; bonuses after it must rescale the prior ATH
     syms = sorted(ATH_PRIOR)
     start = (datetime.now() - timedelta(days=430)).strftime("%Y-%m-%d")
     frames = []
@@ -94,9 +95,33 @@ px["date"] = pd.to_datetime(px["date"])
 C = px.pivot_table(index="date", columns="symbol", values="close")
 V = px.pivot_table(index="date", columns="symbol", values="volume")
 ASOF = C.index[-1]
+
+def adjust_corporate_actions(C):
+    """Yahoo leaves some NSE bonuses/splits unadjusted (e.g. CGCL 1-Jan-2024, x0.25). A one-day close ratio
+    <= 0.72 that does not snap back within 5 sessions is treated as a corporate action and all earlier prices
+    are scaled — otherwise the stock shows a fake 'fallen angel' drawdown and fake momentum."""
+    Rr = C / C.shift(1); A = C.copy(); events = []
+    for s in C.columns:
+        r = Rr[s].dropna(); hits = r[r <= 0.72]
+        for d, v in hits.items():
+            i = C.index.get_loc(d); after = C[s].iloc[i+1:i+6].dropna()
+            if len(after) and after.max() / C[s].iloc[i] < 1.35:
+                A.loc[:d - pd.Timedelta(days=1), s] *= v; events.append((s, d, float(v)))
+    return A, events
+RAW_C = C
+C, ca_events = adjust_corporate_actions(C)
+n_adj = len(ca_events)
+log(f"corporate-action adjustment: {n_adj} unadjusted bonus/split events corrected")
+if ATH_PRIOR and ca_events:
+    # the bundle's ATH was computed at ATH_ASOF; a bonus/split after that date leaves it on the old (pre-bonus) scale
+    n_fix = 0
+    for s, d, v in ca_events:
+        if s in ATH_PRIOR and np.isfinite(ATH_PRIOR[s]) and (ATH_ASOF is None or d > ATH_ASOF):
+            ATH_PRIOR[s] *= v; n_fix += 1
+    if n_fix: log(f"rescaled {n_fix} bundle ATHs for corporate actions after the bundle date")
 log(f"{C.shape[1]} symbols through {ASOF.date()}")
 
-TURN = (C * V)
+TURN = (RAW_C * V)
 turn20 = TURN.rolling(20, min_periods=10).mean().iloc[-1] / 1e5          # lakhs/day
 volreg = (TURN.rolling(63).mean().iloc[-1] / TURN.rolling(252, min_periods=150).mean().iloc[-1])
 last = C.ffill().iloc[-1]
@@ -220,7 +245,7 @@ log(f"radar: {len(rows)} names score>=2 ({out['counts']}) → {p}")
 if not a.cloud:
     import shutil
     bdir = os.path.join(a.data, "radar_inputs"); os.makedirs(bdir, exist_ok=True)
-    pd.DataFrame({"symbol": ath_now.index, "ath": ath_now.values}).dropna().to_csv(os.path.join(bdir, "ath.csv"), index=False)
+    pd.DataFrame({"symbol": ath_now.index, "ath": ath_now.values, "asof": str(ASOF.date())}).dropna().to_csv(os.path.join(bdir, "ath.csv"), index=False)
     for src_p, nm in ((os.path.join(a.data, "mcap.csv"), "mcap.csv"), (os.path.join(MB, "shareholding_panel.csv.gz"), "shareholding_panel.csv.gz"),
                       (os.path.join(NSE_D, "asm.json"), "asm.json"), (os.path.join(MB, "industry_map.csv"), "industry_map.csv"),
                       (os.path.join(a.data, "universe_all.csv"), "universe_all.csv")):
