@@ -123,7 +123,7 @@ log(f"{C.shape[1]} symbols through {ASOF.date()}")
 
 TURN = (RAW_C * V)
 turn20 = TURN.rolling(20, min_periods=10).mean().iloc[-1] / 1e5          # lakhs/day
-volreg = (TURN.rolling(63).mean().iloc[-1] / TURN.rolling(252, min_periods=150).mean().iloc[-1])
+volreg = (TURN.rolling(63, min_periods=40).mean().iloc[-1] / TURN.rolling(252, min_periods=150).mean().iloc[-1])   # min_periods: a missing last session must not blank the signal
 last = C.ffill().iloc[-1]
 ret6 = C.ffill().iloc[-1] / C.ffill().iloc[-126] - 1 if len(C) > 126 else pd.Series(dtype=float)
 ret3 = C.ffill().iloc[-1] / C.ffill().iloc[-63] - 1 if len(C) > 63 else pd.Series(dtype=float)
