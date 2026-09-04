@@ -384,14 +384,44 @@ def technicals(sym, g, bench):
     # drawdown 1y
     cc = c[-252:]; peak = np.maximum.accumulate(cc)
     T["max_dd_1y"] = float(np.min(cc / peak - 1))
+    # early-momentum setup flags (event study Sep-2026: each +1.2-1.5% 10d excess vs universe, 10/10 positive years)
+    early = []
+    hi20y = float(np.max(c[-21:-1])) if n > 21 else None      # prior 20d close-high, excl today
+    hi50y = float(np.max(c[-51:-1])) if n > 51 else None
+    r5 = (c[-1] / c[-6] - 1) if n > 6 else None
+    r50b = (c[-2] / c[-52] - 1) if n > 52 else None
+    if T.get("bb_width_pctl") is not None and T["bb_width_pctl"] < 0.15 and hi20y and last > hi20y: early.append("squeeze release")
+    if T.get("vol_ratio_5_50") and T["vol_ratio_5_50"] >= 2.0 and r5 is not None and abs(r5) < 0.03: early.append("volume wake")
+    if hi50y and last >= hi50y and r50b is not None and r50b < 0.10: early.append("first thrust")
+    # base-breakout patterns (Sep-2026 lab: A = uptrend+tight-base breakout, +5.7% 60d excess, 10/10 yrs;
+    # B = 2y-high breakout from quiet base, +3.9% 20d excess but fades by 6m — a 1-month trade)
+    T["breakout_watch"] = None
+    if n > 190:
+        bhi = float(np.max(c[-61:-1])); blo = float(np.min(c[-61:-1]))
+        tightA = blo > 0 and (bhi / blo - 1) <= 0.25
+        upA = (c[-64] / c[-190] - 1) >= 0.30
+        above = (T.get("vs_ema200") or 0) > 0
+        if tightA and upA and above and last > bhi and (T.get("vol_ratio_5_50") or 0) >= 1.3: early.append("base breakout")
+        elif tightA and upA and above and 0.95 <= last / bhi < 1.0: T["breakout_watch"] = round(bhi, 2)
+    if n > 400:
+        w2 = min(500, n - 1)
+        h2y = float(np.max(c[-w2 - 1:-1])); h1y = float(np.max(c[-251:-1])); l1y = float(np.min(c[-251:-1]))
+        dormant = h2y > h1y * 1.001; quiet = l1y > 0 and (h1y / l1y - 1) <= 0.40
+        if dormant and quiet and last > h2y and (T.get("vol_ratio_5_50") or 0) >= 1.3: early.append("multiyear breakout")
+        elif dormant and quiet and 0.95 <= last / h2y < 1.0: T["breakout_watch"] = T["breakout_watch"] or round(h2y, 2)
+    T["early_setup"] = ", ".join(early) if early else None
     T["gap_days_20"] = int(np.sum(abs(g["open"].values[-20:] / c[-21:-1] - 1) > 0.02)) if n > 21 else None
     T["up_days_20"] = int(np.sum(dr[-20:] > 0))
     # levels for the trade plan
     A = atr[-1]
     T["levels"] = {
-        "long": {"trigger": round(T["hi20"], 2), "stop": round(T["hi20"] - 2 * A, 2), "alt_stop": round(min(T["lo20"], e50[-1]), 2),
-                 "t1": round(T["hi20"] + 4 * A, 2), "t2": round(T["hi20"] + 6 * A, 2), "rr_at_mkt": round((T["hi20"] + 4 * A - last) / max(last - (T["hi20"] - 2 * A), 1e-9), 2) if last > T["hi20"] - 2 * A else None},
-        "short": {"trigger": round(T["lo20"], 2), "stop": round(T["lo20"] + 2 * A, 2), "alt_stop": round(max(T["hi20"], e50[-1]), 2),
+        # stop 2->3 ATR + chandelier trail: 10y exit lab (Sep-2026) — 2xATR stop was the worst policy tested
+        # (median MAE -8.6% shakes it out); wide stop + trail highest-close - 2.5xATR ~2.4x the per-trade profit.
+        "long": {"trigger": round(T["hi20"], 2), "stop": round(T["hi20"] - 3 * A, 2), "alt_stop": round(min(T["lo20"], e50[-1]), 2),
+                 "trail_mult": 2.5, "atr": round(A, 2),
+                 "t1": round(T["hi20"] + 4 * A, 2), "t2": round(T["hi20"] + 6 * A, 2), "rr_at_mkt": round((T["hi20"] + 4 * A - last) / max(last - (T["hi20"] - 3 * A), 1e-9), 2) if last > T["hi20"] - 3 * A else None},
+        "short": {"trigger": round(T["lo20"], 2), "stop": round(T["lo20"] + 3 * A, 2), "alt_stop": round(max(T["hi20"], e50[-1]), 2),
+                  "trail_mult": 2.5, "atr": round(A, 2),
                   "t1": round(T["lo20"] - 4 * A, 2), "t2": round(T["lo20"] - 6 * A, 2)},
         "lt": {"buy_zone_lo": round(min(e50[-1], e200[-1]), 2), "buy_zone_hi": round(max(e50[-1], e200[-1]), 2),
                "stop": round(min(lo52 * 1.0, e200[-1] * 0.92), 2), "invalidation": "weekly close below 200 EMA with momentum negative"}}
@@ -547,7 +577,7 @@ MODES = {
     "longterm":   {"label": "Long-term value", "dir": "long", "review": "1 year", "hold_note": "buy in the 50–200 EMA zone, review yearly",
                    "w": {"quality": 20, "growth": 15, "balance": 10, "cash": 10, "valuation": 15, "ownership": 5, "trend": 10, "momentum": 5, "rs": 5, "structure": 3, "volume": 2},
                    "gates": {"turnover_min": 2, "pat_positive": True, "min_bars": 200, "pe_min": 3, "other_inc_max": 0.30, "dilution_max": 0.25}},
-    "swing_long": {"label": "Swing — long", "dir": "long", "review": "2 weeks", "hold_note": "ride while it works; re-rank every two weeks, not monthly",
+    "swing_long": {"label": "Swing — long", "dir": "long", "review": "2 weeks", "hold_note": "entries re-rank every 2 weeks; exits on the trail (3×ATR stop → 2.5×ATR chandelier), not the calendar",
                    "w": {"quality": 0, "growth": 0, "balance": 0, "cash": 0, "valuation": 0, "ownership": 0, "trend": 22, "momentum": 26, "rs": 24, "structure": 18, "volume": 10},
                    "gates": {"turnover_min": 25, "above_ema200": True, "atr_pct_min": 0.015, "min_bars": 200, "max_ext": 0.30, "pat_positive": True, "dilution_max": 0.10, "cfo_pat_min": 0.5,
                              "growth_min": 40, "quality_min": 40}},  # fundamental confirm: 3y sweep (Aug-2026) — best excess & win rate at every hold ≥ 3W, halves drawdown
