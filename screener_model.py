@@ -333,6 +333,11 @@ def technicals(sym, g, bench):
     tr = np.maximum(h[1:] - l[1:], np.maximum(abs(h[1:] - c[:-1]), abs(l[1:] - c[:-1])))
     atr = pd.Series(tr).ewm(alpha=1 / 14, adjust=False).mean().values
     T["atr"] = float(atr[-1]); T["atr_pct"] = float(atr[-1] / last)
+    # Swing v2 signal-engine inputs (momentum-breakout playbook, generalized)
+    T["above_sma200"] = bool(last > float(np.mean(c[-200:]))) if n >= 200 else False
+    T["prev_high"] = float(h[-2]) if n > 2 else None
+    T["vol_x50"] = float(v[-1] / (np.mean(v[-50:]) + 1e-9)) if n > 50 else None
+    T["mbv2_level"] = float(h[-1] + 0.5 * atr[-1])   # close needed TOMORROW to trigger
     T["sharpe_6m"] = float(np.mean(dr[-126:]) / (np.std(dr[-126:]) + 1e-12) * math.sqrt(252)) if n > 126 else None
     T["sharpe_3m"] = float(np.mean(dr[-63:]) / (np.std(dr[-63:]) + 1e-12) * math.sqrt(252))
     # relative strength vs benchmark (aligned by date)
@@ -827,6 +832,27 @@ try:
     nse_meta = nse_exchange_block(stocks)
 except Exception as e:
     log("nse block failed (continuing without):", str(e)[:120])
+
+# Swing v2 — momentum-breakout signal engine, cross-sectional pass
+# (F&O playbook generalized to this universe; Sep-2026 validation: 23.2% CAGR / -33% DD on 2017-2026, vs 23.3% on 23y F&O)
+try:
+    elig = [s for s in stocks if (s["T"].get("ret_6m") or 0) >= 0.35 and s["T"].get("above_sma200") and (s["T"].get("turnover_20") or 0) >= 2]
+    if len(elig) >= 4:
+        moms = sorted((x["T"]["ret_6m"] for x in elig), reverse=True)
+        cut = moms[max(0, int(len(moms) * 0.25) - 1)]
+        cut_top = moms[max(0, int(len(moms) * 0.125) - 1)]   # top half of the kept quartile
+        for s in elig:
+            T2 = s["T"]
+            if T2["ret_6m"] < cut: continue
+            T2["mbv2_tier"] = "A" if T2["ret_6m"] >= cut_top else "B"   # A sizes 0.60%, B 0.30% (variant grid Sep-2026)
+            hot = (T2.get("atr_pct") or 0) > 0.055                       # vol-quality filter: +6pp CAGR, -10pp DD, robust 4.5-6%
+            trig = (not hot) and T2.get("prev_high") and T2["price"] >= T2["prev_high"] + 0.5 * T2["atr"] and (T2.get("vol_x50") or 0) >= 1.5
+            T2["mbv2"] = "TRIGGER" if trig else "WATCH"
+            if hot: T2["mbv2_hot"] = True                                # shown as watch-only: too volatile to size
+    log(f"swing v2: {sum(1 for s in stocks if s['T'].get('mbv2') == 'TRIGGER')} triggers, "
+        f"{sum(1 for s in stocks if s['T'].get('mbv2') == 'WATCH')} on watch")
+except Exception as e:
+    log("swing v2 block failed (continuing):", str(e)[:120])
 
 # sector aggregates
 sec = {}

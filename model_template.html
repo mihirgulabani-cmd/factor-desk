@@ -600,20 +600,82 @@ function renderTable(){
     <div class="tile"><div class="lbl">Red-flagged</div><div class="v">${rows.filter(r=>r.st.n_red>0).length}</div><div class="d">in the current list</div></div>
     <div class="tile"><div class="lbl">Watchlist</div><div class="v">${S.stars.size}</div><div class="d">starred names</div></div>
   </div>`;
+  const sigStocks = m==='swing_long' ? D.stocks.filter(s=>s.T.mbv2) : [];
+  let sigCard='';
+  if(sigStocks.length){
+    const trig=sigStocks.filter(s=>s.T.mbv2==='TRIGGER').sort((a,b)=>(b.T.ret_6m||0)-(a.T.ret_6m||0));
+    const watch=sigStocks.filter(s=>s.T.mbv2==='WATCH').sort((a,b)=>(b.T.ret_6m||0)-(a.T.ret_6m||0));
+    const trow=s=>{const a=s.T.atr,e=s.price,stop=e-1.25*a,book=e+1.25*a;const tier=s.T.mbv2_tier||'B';const rk=tier==='A'?0.006:0.003;const qty=Math.floor(S.size.pot*rk/(1.25*a));const capqty=Math.floor(S.size.pot*0.20/e);const q=Math.min(qty,capqty);
+      return `<tr data-s="${s.symbol}"><td><b>${esc(s.symbol)}</b> <span class="verdict ${tier==='A'?'hold':''}" style="padding:1px 6px;font-size:10px;${tier==='A'?'':'background:var(--chip);color:var(--ink)'}" title="Conviction tier by momentum rank: A (top half) sizes at 0.60%, B at 0.30% — tiered sizing added +3-4pp CAGR in the variant grid">${tier}</span> <span class="nm">${esc(s.name)}</span></td><td class="r num pos">${spct(s.T.ret_6m,0)}</td><td class="r num">${px(e)}</td><td class="r num">${px(stop)}</td><td class="r num">${px(book)}</td><td class="r num">${fmtIN(q)} <small style="color:var(--muted)">@${(rk*100).toFixed(2)}%</small>${q===capqty?' <span title="capped at 20% of pot" style="color:var(--warn)">cap</span>':''}</td><td class="r num">${s.T.vol_x50?s.T.vol_x50.toFixed(1)+'x':'–'}</td></tr>`};
+    const wrow=s=>`<button class="iconbtn" data-s="${s.symbol}" style="padding:2px 8px" title="Eligible (6m ${spct(s.T.ret_6m,0)}, top-quartile momentum, above 200 SMA). Triggers on a close above ₹${px(s.T.mbv2_level)} with volume ≥ 1.5× normal.">${esc(s.symbol)} <small style="color:var(--muted)">&gt;${px(s.T.mbv2_level)}</small></button>`;
+    sigCard=`<div class="card" style="margin-bottom:14px;border-left:4px solid var(--up)"><h3>Swing v2 — momentum-breakout signals <span>the tested engine · 23.3% CAGR on 23y F&amp;O, 23.2% validated on this universe (2017–26) · take every trigger, up to 12 open</span></h3>
+    ${trig.length?`<div class="finwrap"><table><thead><tr><th>Trigger — enter at TODAY'S close</th><th class="r">6m momo</th><th class="r">Entry</th><th class="r">Stop (1.25×ATR)</th><th class="r">Book 20% at</th><th class="r">Qty (tiered)</th><th class="r">Vol</th></tr></thead><tbody>${trig.map(trow).join('')}</tbody></table></div>`:`<div class="help">No triggers today — most days have none; 28% of months produce no trade at all. That is the system working.</div>`}
+    ${watch.length?`<div style="margin-top:10px;font-size:12px;color:var(--muted)">Watchlist (eligible, needs the close): ${watch.slice(0,20).map(wrow).join(' ')}</div>`:''}
+    <div class="help" style="margin-top:8px">After entry: stop 1.25×ATR placed same day (never widened) · book 20% at +1R · trail the rest 6×ATR below the running high, tighten to 4×ATR past +8R · no target, no time limit. Triggers with ATR &gt; 5.5% of price stay watch-only (the vol-quality filter: +6pp CAGR, −10pp drawdown, robust across thresholds); tier A (top-half momentum) sizes 0.60%, tier B 0.30%. Fundamental gates were tested and hurt — there are none here on purpose.</div>
+    <details style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--up)">How to trade this — the complete drill (read once, then it takes 15 min/day)</summary>
+      <div style="font-size:12.5px;line-height:1.65;margin-top:8px;max-width:900px">
+        <p style="margin:6px 0"><b>One-time setup:</b> set your capital pot in <b>Sizing</b> (left rail). Every Qty on this card is computed from it. Done.</p>
+        <p style="margin:10px 0 4px"><b style="color:var(--up)">EVERY TRADING DAY, 3:00–3:20 PM — new entries</b></p>
+        <ol style="margin:4px 0 4px 18px;padding:0">
+          <li><b>Open this tab and look at this green card.</b> That is the whole scan — everything is pre-filtered.</li>
+          <li><b>TRIGGERS table empty?</b> No new buys today. Most days are like this (28% of months have zero trades). Skip to the evening routine.</li>
+          <li><b>TRIGGERS has names?</b> Buy <u>each one</u> at market before the 3:30 close, exactly the <b>Qty</b> shown. Skip a name only if you already hold it, or you already have 12 positions open. Do NOT judge the stock — no chart-checking, no news-reading, no "it's up too much already". Every filter that helps is already applied; cherry-picking was tested and costs ~6pp/yr.</li>
+        </ol>
+        <p style="margin:10px 0 4px"><b style="color:var(--up)">SAME EVENING you buy — two orders, non-negotiable</b></p>
+        <ol start="4" style="margin:4px 0 4px 18px;padding:0">
+          <li><b>Place the stop-loss</b> at the <b>Stop</b> price shown (entry − 1.25×ATR). A real GTT/SL order at your broker, not a mental level. This stop is NEVER moved down and NEVER widened, for any reason.</li>
+          <li><b>Place the booking order:</b> sell <b>20% of your qty</b> at the <b>"Book 20% at"</b> price (+1R). Also a real order.</li>
+          <li><b>Write down two numbers</b> for the position: your entry price and the ATR (Stop distance ÷ 1.25). The trail calculator below needs them and they never change.</li>
+        </ol>
+        <p style="margin:10px 0 4px"><b style="color:var(--up)">EVERY EVENING, for each open position — 2 minutes</b></p>
+        <ol start="7" style="margin:4px 0 4px 18px;padding:0">
+          <li><b>Stop-loss hit today?</b> You're out. Done. No re-entry, no regret — a re-trigger will put it back on this card if it sets up again.</li>
+          <li><b>20% book order filled?</b> You now hold 80% and the trade owes you nothing. From tonight, trail: put your entry, ATR, and the highest CLOSE since entry into the calculator below — it tells you exactly where tonight's stop goes. Stop moves UP only.</li>
+          <li><b>Neither?</b> Touch nothing. The stop stays exactly where it is.</li>
+        </ol>
+        <p style="margin:10px 0 4px"><b style="color:var(--up)">HOW YOU EXIT</b></p>
+        <p style="margin:4px 0">One way only: <b>the stop or trail gets hit.</b> There is no target, no time limit, no "it doubled, let me sell". Winners are held for months — in the backtest the top 10% of trades made 92% of all the money, and you cannot know in advance which ones they are. Selling early is how this system dies.</p>
+        <p style="margin:10px 0 4px"><b style="color:var(--dn)">NEVER DO</b> (each one was backtested; each one destroyed returns)</p>
+        <p style="margin:4px 0">Widen a stop · book more than the 20% · average down · skip triggers · add your own filters (fundamentals, "looks expensive", RSI, anything) · buy watchlist names before they close above their trigger level · buy a hot-flagged name.</p>
+        <p style="margin:10px 0 4px"><b>WHAT TO EXPECT</b></p>
+        <p style="margin:4px 0">Backtest 2016–26: 31.6%/yr, worst drawdown −21% — quote yourself 25–30%. The honest shape: a few huge years (2020 +98%, 2021 +119%, 2023 +72%) pay for many boring ones (−6% to +12%). The boring stretches are normal operation, not a broken system — quitting during one is the only real way to lose.</p>
+        <div style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--chip)">
+          <b style="font-size:12px">Trail-stop calculator — where does tonight's stop go?</b>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px">
+            <label>Entry ₹ <input id="tcE" type="number" step="0.05" style="width:90px"></label>
+            <label>ATR at entry ₹ <input id="tcA" type="number" step="0.05" style="width:90px"></label>
+            <label>Highest close since ₹ <input id="tcH" type="number" step="0.05" style="width:110px"></label>
+          </div>
+          <div id="tcOut" style="margin-top:8px;font-size:12.5px"></div>
+        </div>
+      </div>
+    </details></div>`;
+  }
   const hasHist=!!(D.movers&&D.movers.prev_date);
   const R=D.regime||{}; const N=D.nse||{};
   const ctxMini=[R.regime?`market ${R.regime.toLowerCase()}`:'',N.asof?`tape ${N.fresh?'fresh':'stale'}`:'',D.movers&&D.movers.prev_date?'movers':'' ,'track record'].filter(Boolean).join(' · ');
   const ctx=`<div class="ctxfold ${S.ctxOpen?'open':''}" id="ctxfold"><button><span class="tw">▶</span> Market pulse &amp; what changed <span class="mini">${esc(ctxMini)}</span></button><div class="ctxbody">${regimePanel()+exchangePanel()+moversPanel()+trackPanel(false)}</div></div>`;
   const simple=S.simpleCols;
   const colT=`<span class="coltoggle"><button id="colS" class="${simple?'on':''}">Simple</button><button id="colF" class="${simple?'':'on'}">All columns</button></span>`;
-  $('#main').innerHTML = ctx + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking <span class="cad">review every ${esc(MODES[m].review||'')}</span>${colT}</h2><span class="sub">${esc(MODES[m].hold_note||'')} · click a row for the full page</span></div>
+  $('#main').innerHTML = ctx + sigCard + tiles + `<div class="tblhead"><h2>${esc(MODES[m].label)} ranking <span class="cad">review every ${esc(MODES[m].review||'')}</span>${colT}</h2><span class="sub">${esc(MODES[m].hold_note||'')} · click a row for the full page</span></div>
   <div class="tblwrap"><table><thead><tr><th></th>${th('symbol','Stock')}<th>Sector</th>${th('mcap','Mcap ₹Cr','r')}${th('price','Price','r')}${th('score','Score')}${hasHist?th('delta','Δ1d'):''}<th title="Pillars: quality, growth, balance, cash, valuation, ownership | trend, momentum, RS, structure, volume">Pillars</th>${simple?'':cols.map(c=>th(c[0],c[1],'r')).join('')}${th('flags','Flags')}<th>Gate</th></tr></thead>
   <tbody>${shown.length?shown.map((r,i)=>{const s=r.st;const [src,k]=['',''];return `<tr data-s="${s.symbol}" class="${r.fails.length?'gated':''}"><td class="rank">${i+1}</td><td><div class="symcell"><span class="sym">${S.stars.has(s.symbol)?'<span style="color:var(--warn)">★</span> ':''}${esc(s.symbol)} ${mqBadge(s)}${m!=='longterm'&&s.T.early_setup?` <span class="earlychip" title="Setup live: ${esc(s.T.early_setup)}. Lab numbers 2017–2026: early triggers +1.2–1.5% 10d excess; base breakout +5.7% 60d excess (10/10 yrs); multiyear breakout +3.9% 20d excess (pops, then fades — treat as a 1-month trade).">${s.T.early_setup.includes('breakout')?'BREAKOUT':'EARLY'}</span>`:''}${m!=='longterm'&&!s.T.early_setup&&isNum(s.T.breakout_watch)?` <span class="earlychip watch" title="Coiled: qualifying base, within 5% below the breakout trigger ₹${fmtIN(s.T.breakout_watch,1)}. Set the alert; enter on the break, stop = trigger − 3×ATR.">COILED</span>`:''}</span><span class="nm" title="${esc(s.name)}">${esc(s.name)}</span></div></td><td><span class="sectag">${esc(s.sector)}</span></td><td class="r num">${fmtIN(s.mcap_cr)}</td><td class="r num">${px(s.price)}</td><td><div class="scorebar"><div class="bar"><i style="width:${r.score.toFixed(0)}%;background:${barColor(r.score)}"></i></div><b>${r.score.toFixed(0)}</b></div></td>${hasHist?`<td class="r delta ${cls((s.hist||{})[m]?.d1)}">${isNum((s.hist||{})[m]?.d1)?((s.hist[m].d1>0?'+':'')+s.hist[m].d1.toFixed(1)):'–'}</td>`:''}<td>${strip(s)}</td>${simple?'':cols.map(c=>{const [key,,f]=c;const [src,k]=key.split(':');const v=s[src][k];return `<td class="r num ${f==='spct'?cls(v):''}">${fmtCol(f,v)}</td>`}).join('')}<td><span class="flagdots">${s.flags.filter(f=>f.sev!=='grey').slice(0,4).map(f=>`<i class="${f.sev}" title="${esc(f.text)}"></i>`).join('')}</span></td><td style="font-size:11px;color:var(--muted)">${r.fails.length?esc(r.fails.join(', ')):'<span class="pos">✓</span>'}</td></tr>`}).join(''):`<tr><td colspan="20" class="empty">Nothing matches. Loosen a filter or a gate.</td></tr>`}</tbody></table>
   ${rows.length>S.limit?`<div class="more"><button id="more">Show ${Math.min(150,rows.length-S.limit)} more (${rows.length-S.limit} remaining)</button></div>`:''}</div>`;
   $('#main').querySelectorAll('thead th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(S.sort.key===k)S.sort.dir*=-1;else S.sort={key:k,dir:k==='symbol'?1:-1};renderMain()});
   $('#main').querySelectorAll('tbody tr[data-s]').forEach(t=>t.onclick=()=>openStock(t.dataset.s));
-  $('#main').querySelectorAll('.movers button[data-s], .xchg button[data-s]').forEach(b=>b.onclick=()=>openStock(b.dataset.s));
+  $('#main').querySelectorAll('.movers button[data-s], .xchg button[data-s], .card button.iconbtn[data-s]').forEach(b=>b.onclick=()=>openStock(b.dataset.s));
   const mb=$('#more'); if(mb)mb.onclick=()=>{S.limit+=150;renderMain()};
+  const tcalc=()=>{const e=+($('#tcE').value),a=+($('#tcA').value),h=+($('#tcH').value);const out=$('#tcOut');
+    if(!(e>0&&a>0)){out.innerHTML='<span style="color:var(--muted)">Fill in entry and ATR (both were printed on this card the day you bought; ATR = stop distance ÷ 1.25).</span>';return}
+    const stop0=e-1.25*a,book=e+1.25*a;
+    let html='Initial stop <b>₹'+stop0.toFixed(2)+'</b> · book 20% at <b>₹'+book.toFixed(2)+'</b>';
+    if(h>0){
+      if(h<book){html+='<br><b>Not at +1R yet</b> — stop stays at ₹'+stop0.toFixed(2)+'. Do nothing tonight.'}
+      else{const k=h>=e+10*a?4:6;const ts=Math.max(stop0,h-k*a);
+        html+='<br>+1R was touched, so the 20% should already be booked. Trailing at '+k+'×ATR'+(k===4?' (past +8R — tightened)':'')+': tonight\'s stop is <b>₹'+ts.toFixed(2)+'</b>. If your current stop is lower, raise it to this. Never lower it.'}}
+    out.innerHTML=html};
+  ['tcE','tcA','tcH'].forEach(id=>{const el=$('#'+id);if(el)el.oninput=tcalc}); if($('#tcOut'))tcalc();
   const cf=$('#ctxfold'); if(cf)cf.querySelector(':scope>button').onclick=()=>{S.ctxOpen=!S.ctxOpen;LS.set('ctxOpen',S.ctxOpen);cf.classList.toggle('open')};
   const cS=$('#colS'),cF=$('#colF'); if(cS){cS.onclick=()=>{S.simpleCols=true;LS.set('simpleCols',true);renderMain()};cF.onclick=()=>{S.simpleCols=false;LS.set('simpleCols',false);renderMain()}}
   window.__rows=rows;
