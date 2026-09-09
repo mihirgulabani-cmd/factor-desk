@@ -338,6 +338,7 @@ def technicals(sym, g, bench):
     T["prev_high"] = float(h[-2]) if n > 2 else None
     T["vol_x50"] = float(v[-1] / (np.mean(v[-50:]) + 1e-9)) if n > 50 else None
     T["mbv2_level"] = float(h[-1] + 0.5 * atr[-1])   # close needed TOMORROW to trigger
+    T["mbv2_volneed"] = float(1.5 * np.mean(v[-50:])) if n > 50 else None   # day volume (shares) needed for the trigger
     T["sharpe_6m"] = float(np.mean(dr[-126:]) / (np.std(dr[-126:]) + 1e-12) * math.sqrt(252)) if n > 126 else None
     T["sharpe_3m"] = float(np.mean(dr[-63:]) / (np.std(dr[-63:]) + 1e-12) * math.sqrt(252))
     # relative strength vs benchmark (aligned by date)
